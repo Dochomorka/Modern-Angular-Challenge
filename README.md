@@ -59,25 +59,25 @@ This structure helps you move from understanding to practice to implementation i
 ## Suggested 30–40 Day Roadmap
 
 ### Phase 1: Foundations
-- Day 1: TypeScript essentials for Angular.
-- Day 2: Angular CLI and project setup.
-- Day 3: Components, templates, and styling.
-- Day 4: Data binding and event handling.
-- Day 5: Directives and pipes.
-- Day 6: Dependency injection basics.
-- Day 7: Services and reusable logic.
+- [Day 1: TypeScript essentials for Angular](./Days/Day-01/README.md).
+- [Day 2: Angular CLI and project setup](./Days/Day-02/README.md).
+- [Day 3: Components, templates, and styling](./Days/Day-03/README.md).
+- [Day 4: Data binding and event handling](./Days/Day-04/README.md).
+- [Day 5: Directives and pipes](./Days/Day-05/README.md).
+- [Day 6: Dependency injection basics](./Days/Day-06/README.md).
+- [Day 7: Services and reusable logic](./Days/Day-07/README.md).
 
 ### Phase 2: Modern Angular Core
-- Day 8: Standalone components.
-- Day 9: Template syntax and control flow.
-- Day 10: Component communication.
-- Day 11: Inputs, outputs, and signals.
-- Day 12: Signal fundamentals.
-- Day 13: Computed values and effects.
-- Day 14: Component lifecycle and structure.
+- [Day 8: Standalone components](./Days/Day-08/README.md).
+- [Day 9: Template syntax and control flow](./Days/Day-09/README.md).
+- [Day 10: Component communication](./Days/Day-10/README.md).
+- [Day 11: Inputs, outputs, and signals](./Days/Day-11/README.md).
+- [Day 12: Signal fundamentals](./Days/Day-12/README.md).
+- [Day 13: Computed values and effects](./Days/Day-13/README.md).
+- [Day 14: Component lifecycle and structure](./Days/Day-14/README.md).
 
 ### Phase 3: Routing and Data Flow
-- Day 15: Angular routing basics.
+- [Day 15: Angular routing basics](./Days/Day-14/README.md).
 - Day 16: Nested routes and route parameters.
 - Day 17: Guards and resolvers.
 - Day 18: HttpClient and API requests.
