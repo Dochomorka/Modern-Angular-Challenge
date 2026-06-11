@@ -1,218 +1,181 @@
-## Day 31 — Higher-Level Reactive Patterns
+# Day 31 — Validation Patterns
 
-Day 31 is about using RxJS more strategically in Angular so your components stay simple and your streams do more of the work. The main focus is on building clean reactive flows for forms, route data, search, and async state.
+Day 31 is about making Angular form validation more user-friendly and structured. Angular’s validation guide shows how to use validators like `required`, `email`, `minLength`, and `pattern`, and how to display validation feedback based on form state [web:305][web:324].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Keep reactive logic out of templates.
-- Build readable observable pipelines.
-- Coordinate multiple async sources.
-- Use stream-driven UI state.
-- Avoid nested subscriptions.
-- Recognize when reactive patterns improve component design.
+- Apply built-in validators consistently.
+- Show errors only when appropriate.
+- Validate based on touch, dirty, or submit state.
+- Use pattern validation for structured input.
+- Organize validation messages clearly.
+- Improve UX without overcomplicating the form.
 
-### Why This Matters
+## Why This Matters
 
-At this stage, observables are no longer just about making requests. They become the way your app handles search, filters, live updates, and coordinated state.
+Validation is not just about blocking bad input. It is also about giving people clear feedback at the right time so forms feel helpful instead of annoying [web:305][web:326][web:328].
 
 This matters because:
-- Components stay smaller.
-- Async code becomes easier to reason about.
-- State changes can stay predictable.
-- You can avoid a lot of manual cleanup and branching.
+- Users need clear guidance.
+- Errors should appear at the right moment.
+- Reusable validation patterns reduce duplicate code.
+- Better validation improves completion rates.
 
-### Reactive Thinking
+## Common Validation Patterns
 
-A reactive pattern usually means:
-- Start with a source stream.
-- Transform it with operators.
-- Combine it with other streams if needed.
-- Expose the final result to the template or another service.
+Angular supports both reactive and template-driven validation, and its docs show that validators can be combined on controls for stronger rules [web:305][web:324].
 
-That keeps your code closer to “data flows through the app” instead of “the app constantly pulls and pushes data by hand.”
+Common patterns include:
+- Required fields.
+- Email format checks.
+- Minimum and maximum length.
+- Pattern-based validation.
+- Conditional error display.
 
-### Common Patterns
+## When To Show Errors
 
-#### Search Flow
-Use a form control stream, add `debounceTime`, filter short input, then call the server with `switchMap`.
+A common pattern is to show errors only when a control has been touched, dirtied, or after submit. That avoids showing messages too early and keeps the form calmer for the user [web:326][web:328].
 
-#### Route + Data Flow
-Combine the current route parameter with an API request so the correct item loads automatically.
+Typical checks:
+- `control.touched`
+- `control.dirty`
+- `form.submitted`
+- `control.invalid`
 
-#### UI State Flow
-Represent loading, success, and error as a stream so the template can react cleanly.
+## Pattern Validation
 
-### Example Pattern
+Pattern validation is useful when input must follow a specific format, such as usernames, phone numbers, or codes. Angular supports `Validators.pattern` for this kind of check [web:325][web:324].
+
+```ts
+import { FormControl, Validators } from '@angular/forms';
+
+phone = new FormControl('', [
+  Validators.required,
+  Validators.pattern(/^[0-9]{10}$/)
+]);
+```
+
+## Error Message Pattern
+
+A clean approach is to create a helper that decides when to show a message. This keeps the template readable and makes validation logic easier to maintain [web:326][web:328].
+
+```ts
+isInvalid(controlName: string): boolean {
+  const control = this.form.get(controlName);
+  return !!control && control.invalid && (control.touched || control.dirty);
+}
+```
+
+## Practical Example
 
 ```ts
 import { Component } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, filter, map } from 'rxjs/operators';
+import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
 @Component({
-  selector: 'app-live-search',
+  selector: 'app-validation-patterns',
   standalone: true,
   imports: [ReactiveFormsModule],
   template: `
-    <input [formControl]="search" placeholder="Search tasks" />
-    <p>Check the console for the transformed query.</p>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div>
+        <input formControlName="username" placeholder="Username" />
+        <p *ngIf="showError('username', 'required')">Username is required.</p>
+        <p *ngIf="showError('username', 'minlength')">Username must be at least 3 characters.</p>
+      </div>
+
+      <div>
+        <input formControlName="phone" placeholder="Phone" />
+        <p *ngIf="showError('phone', 'required')">Phone is required.</p>
+        <p *ngIf="showError('phone', 'pattern')">Phone must be 10 digits.</p>
+      </div>
+
+      <button type="submit">Save</button>
+    </form>
   `
 })
-export class LiveSearchComponent {
-  search = new FormControl('');
+export class ValidationPatternsComponent {
+  form = new FormGroup({
+    username: new FormControl('', [Validators.required, Validators.minLength(3)]),
+    phone: new FormControl('', [Validators.required, Validators.pattern(/^[0-9]{10}$/)])
+  });
 
-  constructor() {
-    this.search.valueChanges.pipe(
-      filter((value): value is string => !!value && value.length >= 3),
-      debounceTime(300),
-      distinctUntilChanged(),
-      map(value => value.trim().toLowerCase())
-    ).subscribe(query => {
-      console.log('Query:', query);
-    });
+  showError(controlName: string, errorName: string): boolean {
+    const control = this.form.get(controlName);
+    return !!control && control.hasError(errorName) && (control.touched || control.dirty);
+  }
+
+  submit() {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    console.log(this.form.value);
   }
 }
 ```
 
-### Better Stream Design
+## Best Practices
 
-Good reactive design usually means:
-- Use one source of truth for each stream.
-- Transform data with operators instead of manual loops.
-- Expose computed stream results to the template.
-- Keep side effects at the edge.
-- Avoid using subscriptions just to move data around.
+- Show errors only after touch, dirty, or submit.
+- Keep validation messages short and clear.
+- Reuse helper methods for error checks.
+- Use pattern validators when format matters.
+- Mark all controls as touched on submit if needed.
 
-### When to Use Reactive Patterns
+## Easy Challenges
 
-Use them when:
-- Input should trigger async work.
-- Multiple values affect the same result.
-- The UI depends on loading or error transitions.
-- A value should update automatically over time.
-- You want to reduce component-level branching.
+- Add a required validator to one field.
+- Show an error only after touch.
+- Add a minimum-length rule.
+- Use a pattern validator for a phone number.
+- Submit and block invalid forms.
 
-### When Not to Overdo It
+## Medium Challenges
 
-Reactive code can become hard to read if everything is turned into a stream. For small or static logic, a normal method or a signal may be simpler.
+- Build reusable error message logic.
+- Add validation for three fields.
+- Show one message per error type.
+- Mark all controls as touched on failed submit.
+- Use both `minlength` and `pattern`.
 
-A good rule:
-- Use streams for async or changing data.
-- Use plain methods for simple synchronous logic.
-- Use signals for local UI state when no async composition is needed.
+## Hard Challenges
 
-### Practical Example
+- Build a full form with multiple validation states.
+- Support validation after blur and after submit.
+- Create a reusable error helper.
+- Show different messages for different rules.
+- Refactor the validation logic into a pattern.
 
-```ts
-import { Component } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { combineLatest, of } from 'rxjs';
-import { map, startWith } from 'rxjs/operators';
+## Reflection Questions
 
-@Component({
-  selector: 'app-filter-summary',
-  standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <input [formControl]="query" placeholder="Search" />
-    <select [formControl]="status">
-      <option value="all">All</option>
-      <option value="open">Open</option>
-      <option value="done">Done</option>
-    </select>
+- When should an error message appear?
+- Why is touch or dirty state useful?
+- How does `pattern` validation help?
+- Why mark all controls as touched on submit?
+- What makes a validation pattern reusable?
 
-    <p>{{ summary$ | async }}</p>
-  `
-})
-export class FilterSummaryComponent {
-  query = new FormControl('');
-  status = new FormControl('all');
+## Day Deliverable
 
-  items = [
-    { title: 'Learn RxJS', status: 'done' },
-    { title: 'Build search', status: 'open' }
-  ];
+Create one form that includes:
 
-  summary$ = combineLatest([
-    this.query.valueChanges.pipe(startWith('')),
-    this.status.valueChanges.pipe(startWith('all'))
-  ]).pipe(
-    map(([query, status]) => {
-      const q = (query || '').toLowerCase();
-      const filtered = this.items.filter(item =>
-        (status === 'all' || item.status === status) &&
-        item.title.toLowerCase().includes(q)
-      );
-      return `Matching items: ${filtered.length}`;
-    })
-  );
-}
-```
+- At least two validators.
+- Conditional error messages.
+- One pattern validator.
+- One submit-time validation pattern.
+- A reusable error helper or equivalent logic.
 
-This shows how multiple reactive inputs can produce one clean derived output.
+## Suggested Practice Flow
 
-### Best Practices
-
-- Keep observable chains short and readable.
-- Use `switchMap` for request-based flows.
-- Use `combineLatest` when multiple inputs matter.
-- Keep side effects at the edges.
-- Prefer streams for async coordination.
-- Do not force everything into RxJS if a simpler solution fits.
-
-### Easy Challenges
-
-- Build a search stream from one form control.
-- Add a debounce to a text input stream.
-- Combine two values into one summary.
-- Transform input text before using it.
-- Expose a stream result in the template.
-
-### Medium Challenges
-
-- Create a live filter for a list.
-- Combine search and category streams.
-- Trigger an API call when input changes.
-- Add a loading state to a request stream.
-- Refactor a component so it uses fewer subscriptions.
-
-### Hard Challenges
-
-- Build a live search page with async data.
-- Create a route-driven detail loader.
-- Combine several stream sources into one dashboard summary.
-- Refactor nested async logic into operator chains.
-- Build a reactive form summary that updates automatically.
-
-### Reflection Questions
-
-- Why do reactive patterns help Angular apps scale?
-- When is a stream better than a method?
-- Why should subscriptions be kept at the edges?
-- How do operators improve readability?
-- When is a simpler non-RxJS solution better?
-
-### Day Deliverable
-
-Create one component or service that includes:
-
-- At least one source stream.
-- One derived stream.
-- One combined or request-driven flow.
-- Minimal manual subscription logic.
-- A template or consumer that uses the final result.
-
-### Suggested Practice Flow
-
-1. Pick one changing input.
-2. Turn it into a stream.
-3. Add operators to shape the result.
-4. Combine it with another source if needed.
-5. Bind the final output to the UI.
+1. Add validators to controls.
+2. Decide when errors should appear.
+3. Add conditional template messages.
+4. Test submit behavior.
+5. Refactor repeated checks.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 32
+## Note for Day 32
 
-Next day will cover state management basics, which will help you decide when to keep state local and when to centralize it.
+Next day covers **Custom Validators**, which is where you create your own validation rules for app-specific needs.
