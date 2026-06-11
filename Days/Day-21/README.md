@@ -1,206 +1,132 @@
-## Day 21 — Reactive Forms
+# Day 21 — Observables and Streams
 
-Day 21 is about learning Angular reactive forms, the more structured and scalable way to handle form state. Reactive forms keep the form model in the component class, which makes validation, updates, and testing easier to manage.
+Day 21 is about understanding observables, the foundation of RxJS in Angular. Angular uses observables to handle common asynchronous operations like HTTP requests, events, and other values that arrive over time [web:208][web:222][web:211].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what reactive forms are.
-- Create a `FormGroup`.
-- Create `FormControl` fields.
-- Set initial form values.
-- Read form values in the component.
-- Add validators.
-- Handle submit with a structured form model.
+- Understand what an observable is.
+- Recognize a stream of values over time.
+- Subscribe to an observable.
+- Understand why Angular uses observables.
+- Create a simple observable.
+- Use observables for async values.
 
-### Why This Matters
+## Why This Matters
 
-Reactive forms are a strong fit for medium and large forms because the form structure lives in TypeScript instead of being spread across the template. That makes the logic easier to test and easier to extend as the app grows.
+Observables let Angular work naturally with data that changes or arrives later. That makes them a strong fit for HTTP, events, route changes, and other reactive UI behavior [web:208][web:222][web:211].
 
-You get:
-- More control.
-- Better validation structure.
-- Clear form state.
-- Easier scaling for complex forms.
+They help you:
+- Work with async data.
+- Represent changing values.
+- Build reactive flows.
+- Keep code composable.
 
-### Core Pieces
+## Basic Idea
 
-Reactive forms usually use these pieces:
+An observable is a stream that can emit zero, one, or many values over time. A subscription is what starts listening to that stream [web:211][web:219].
 
-- `FormControl` for a single field.
-- `FormGroup` for a set of controls.
-- `FormBuilder` to create forms more easily.
-- Validators to enforce rules.
+## Example
 
-### Example: Basic Reactive Form
+```ts
+import { Observable } from 'rxjs';
+
+const names$ = new Observable<string>(subscriber => {
+  subscriber.next('Angular');
+  subscriber.next('RxJS');
+  subscriber.complete();
+});
+
+names$.subscribe(value => console.log(value));
+```
+
+## Why Angular Uses Them
+
+Angular uses observables because many common app behaviors are asynchronous:
+- HTTP responses.
+- Route changes.
+- Input changes.
+- Timer events.
+- Shared app state [web:208][web:222][web:211].
+
+## Practical Example
 
 ```ts
 import { Component } from '@angular/core';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { of } from 'rxjs';
 
 @Component({
-  selector: 'app-login-form',
+  selector: 'app-stream-demo',
   standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="loginForm" (ngSubmit)="submit()">
-      <label>
-        Email
-        <input type="email" formControlName="email" />
-      </label>
-
-      <label>
-        Password
-        <input type="password" formControlName="password" />
-      </label>
-
-      <button type="submit" [disabled]="loginForm.invalid">Login</button>
-    </form>
-
-    @if (submitted) {
-      <p>Submitted: {{ loginForm.value | json }}</p>
-    }
-  `
+  template: `<p>Check the console</p>`
 })
-export class LoginFormComponent {
-  submitted = false;
-
-  loginForm = this.fb.group({
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]]
-  });
-
-  constructor(private fb: FormBuilder) {}
-
-  submit() {
-    this.submitted = true;
-    console.log(this.loginForm.value);
+export class StreamDemoComponent {
+  constructor() {
+    of('one', 'two', 'three').subscribe(value => console.log(value));
   }
 }
 ```
 
-### What to Notice
+## Best Practices
 
-- The form structure is in the component class.
-- Each field is explicitly declared.
-- Validators are attached in TypeScript.
-- The template binds to the form model with `formGroup` and `formControlName`.
+- Use observables for async or changing values.
+- Subscribe when you need the emitted values.
+- Keep streams small and readable.
+- Prefer declarative stream handling where possible.
+- Avoid treating observables like plain values.
 
-### Validation Basics
+## Easy Challenges
 
-Reactive forms make validation very clear.
+- Create an observable with three values.
+- Subscribe and log each value.
+- Use `of()` to make a simple stream.
+- Observe a timer or interval.
+- Create a stream from a basic string list.
 
-Common validators:
-- Required.
-- Email.
-- Min length.
-- Pattern.
+## Medium Challenges
 
-You can also inspect control state like:
-- `valid`
-- `invalid`
-- `touched`
-- `dirty`
-- `errors`
+- Build a stream that emits task titles.
+- Turn a number stream into uppercase text.
+- Subscribe inside a component method.
+- Compare observable output to a plain array.
+- Create a stream from a changing value source.
 
-### Practical Example
+## Hard Challenges
 
-```ts
-import { Component } from '@angular/core';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+- Build a stream that models user typing.
+- Use an observable for a small async workflow.
+- Create a reactive value pipeline.
+- Refactor manual state updates into a stream.
+- Represent a changing list as an observable.
 
-@Component({
-  selector: 'app-profile-form',
-  standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="profileForm" (ngSubmit)="save()">
-      <label>
-        Name
-        <input formControlName="name" />
-      </label>
+## Reflection Questions
 
-      <label>
-        Role
-        <input formControlName="role" />
-      </label>
+- What is a stream of values?
+- Why does Angular use observables so often?
+- What starts an observable?
+- How is a stream different from a plain variable?
+- When is an observable the right choice?
 
-      <button type="submit" [disabled]="profileForm.invalid">Save</button>
-    </form>
+## Day Deliverable
 
-    @if (saved) {
-      <p>Profile saved for {{ profileForm.value.name }}</p>
-    }
-  `
-})
-export class ProfileFormComponent {
-  saved = false;
+Create one observable example that includes:
 
-  profileForm = this.fb.group({
-    name: ['', Validators.required],
-    role: ['', Validators.required]
-  });
+- One stream.
+- One subscription.
+- A clear emitted output.
+- A small real use case.
+- An understanding of async flow.
 
-  constructor(private fb: FormBuilder) {}
+## Suggested Practice Flow
 
-  save() {
-    this.saved = true;
-  }
-}
-```
-
-### Easy Challenges
-
-- Create a reactive form with one field.
-- Add a submit button.
-- Use `ReactiveFormsModule`.
-- Add one validator.
-- Display form values after submit.
-
-### Medium Challenges
-
-- Build a login form with email and password.
-- Add required and min-length validation.
-- Disable submit when the form is invalid.
-- Show a success message after submit.
-- Create a form with three fields.
-
-### Hard Challenges
-
-- Build a profile form with validation.
-- Add custom error messages.
-- Create a form group with multiple related controls.
-- Reset the form after submit.
-- Prepare the form to submit data to an API.
-
-### Reflection Questions
-
-- Why are reactive forms more scalable?
-- Why keep the form model in TypeScript?
-- How do validators improve form quality?
-- When would a simple form still be enough?
-- What makes reactive forms easier to test?
-
-### Day Deliverable
-
-Create one reactive form that includes:
-
-- A `FormGroup`.
-- At least two `FormControl` fields.
-- At least one validator.
-- A submit action.
-- A success or feedback message.
-
-### Suggested Practice Flow
-
-1. Create a reactive form.
-2. Add controls and validators.
-3. Bind the form in the template.
-4. Handle submit.
-5. Add validation feedback.
+1. Create one observable.
+2. Subscribe to it.
+3. Test its output.
+4. Make a second stream.
+5. Compare direct values and streams.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 22
+## Note for Day 22
 
-Next day will cover form validation and error messages in more depth, which will help you make your forms user-friendly and reliable.
+Next day covers **Subscriptions and cleanup**, which is about managing active streams safely.
