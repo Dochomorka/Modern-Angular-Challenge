@@ -193,4 +193,4 @@ Create one screen that includes:
 
 ### Note for Day 20
 
-Next day will cover forms basics, which is the next major step after data display and API handling.
+Next day will cover Interceptors and Request Patterns.
