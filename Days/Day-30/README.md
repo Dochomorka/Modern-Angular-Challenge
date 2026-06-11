@@ -1,188 +1,179 @@
-## Day 30 — RxJS Operators and Stream Composition
+# Day 30 — Reactive Forms
 
-Day 30 is about going beyond the basics and learning how to combine, filter, and coordinate observables. The focus is on the operators you’ll use most often in real Angular apps: transforming streams, combining values, and controlling async flows.
+Day 30 is about building forms with reactive forms in Angular. Angular’s forms guide shows that reactive forms are built around `FormControl`, `FormGroup`, and `ReactiveFormsModule`, with form state managed in the component class instead of the template [web:323][web:304][web:307].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Use common RxJS operators.
-- Filter and transform observable values.
-- Combine multiple streams.
-- Understand `switchMap` at a basic level.
-- Build cleaner reactive data flows.
-- Recognize when operators simplify your code.
+- Understand what reactive forms are.
+- Create a `FormGroup`.
+- Create `FormControl` instances.
+- Bind a form with `[formGroup]`.
+- Use `formControlName` in the template.
+- Handle submission from the component.
+- Apply validation in code.
 
-### Why This Matters
+## Why This Matters
 
-Basic observables are useful, but real apps usually need more. You may want to search as the user types, combine route params with API calls, or react to several streams together.
+Reactive forms are a strong choice when you need more control, better testability, and more explicit form logic. Angular’s docs show that this style keeps the form model in the component, which makes complex forms easier to manage [web:323][web:307][web:320].
 
-Operators help you:
-- Reduce manual state handling.
-- Keep async logic readable.
-- Work with multiple sources of data.
-- Avoid nested subscriptions.
+This matters because:
+- You can control form state directly in code.
+- Validation becomes easier to organize.
+- Complex forms are easier to scale.
+- Testing is usually clearer.
 
-### Common Operators
+## Core Idea
 
-Some of the most useful operators are:
+In reactive forms, the component owns the form model. The template just connects to the model using directives like `[formGroup]` and `formControlName` [web:323][web:307][web:320].
 
-- `map` — transform each value.
-- `filter` — keep only matching values.
-- `tap` — inspect values without changing them.
-- `debounceTime` — wait before emitting.
-- `switchMap` — switch to a new inner observable.
-- `combineLatest` — merge the latest values from multiple streams.
+## Basic Setup
 
-### `filter`
-
-Use `filter` when only certain values should continue through the stream.
-
-```ts
-import { of } from 'rxjs';
-import { filter } from 'rxjs/operators';
-
-of(1, 2, 3, 4, 5)
-  .pipe(filter(value => value % 2 === 0))
-  .subscribe(value => console.log(value));
-```
-
-### `tap`
-
-Use `tap` for debugging or side effects without changing the value.
-
-```ts
-import { of } from 'rxjs';
-import { tap } from 'rxjs/operators';
-
-of('angular')
-  .pipe(tap(value => console.log('value:', value)))
-  .subscribe();
-```
-
-### `switchMap`
-
-Use `switchMap` when one stream should trigger another stream, such as search input triggering API calls.
-
-```ts
-import { of } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
-
-of('search term')
-  .pipe(
-    switchMap(term => of(`Results for ${term}`))
-  )
-  .subscribe(result => console.log(result));
-```
-
-### Combining Streams
-
-Sometimes you need values from multiple observables at once. `combineLatest` helps when the latest value from each source matters.
-
-```ts
-import { combineLatest, of } from 'rxjs';
-import { map } from 'rxjs/operators';
-
-const a$ = of(10);
-const b$ = of(20);
-
-combineLatest([a$, b$])
-  .pipe(map(([a, b]) => a + b))
-  .subscribe(total => console.log(total));
-```
-
-### Practical Example
+You need `ReactiveFormsModule` and the form classes from `@angular/forms` [web:304][web:307][web:321].
 
 ```ts
 import { Component } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, filter, map } from 'rxjs/operators';
+import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
 @Component({
-  selector: 'app-search-demo',
+  selector: 'app-reactive-form',
   standalone: true,
   imports: [ReactiveFormsModule],
-  template: `
-    <input [formControl]="search" placeholder="Search tasks" />
-    <p>Type at least 3 characters.</p>
-  `
+  templateUrl: './reactive-form.component.html'
 })
-export class SearchDemoComponent {
-  search = new FormControl('');
+export class ReactiveFormComponent {
+  profileForm = new FormGroup({
+    name: new FormControl('', [Validators.required]),
+    email: new FormControl('', [Validators.required, Validators.email])
+  });
 
-  constructor() {
-    this.search.valueChanges.pipe(
-      filter((value): value is string => !!value && value.length >= 3),
-      debounceTime(300),
-      distinctUntilChanged(),
-      map(value => value.toUpperCase())
-    ).subscribe(value => console.log('Search:', value));
+  onSubmit() {
+    console.log(this.profileForm.value);
   }
 }
 ```
 
-This example shows how operators help clean up user input before using it.
+## Template Example
 
-### Best Practices
+```html
+<form [formGroup]="profileForm" (ngSubmit)="onSubmit()">
+  <label>
+    Name:
+    <input type="text" formControlName="name" />
+  </label>
 
-- Use operators to keep logic readable.
-- Avoid nested subscriptions when possible.
-- Prefer `switchMap` for request-driven streams.
-- Use `tap` for logging or debugging.
-- Add `debounceTime` to input-driven streams.
-- Keep stream transformations close to the source.
+  <label>
+    Email:
+    <input type="email" formControlName="email" />
+  </label>
 
-### Easy Challenges
+  <button type="submit" [disabled]="profileForm.invalid">Save</button>
+</form>
+```
 
-- Filter an observable to keep only even numbers.
-- Transform strings to uppercase with `map`.
-- Log values with `tap`.
-- Create a stream that waits before emitting.
-- Subscribe to a filtered stream.
+The form is connected to the component through `[formGroup]`, and each input is linked by `formControlName` [web:307][web:319][web:320].
 
-### Medium Challenges
+## Validation Basics
 
-- Build a search input with `debounceTime`.
-- Combine two streams and compute a result.
-- Use `switchMap` to chain one stream into another.
-- Remove duplicate values with `distinctUntilChanged`.
-- Create a form value stream and transform it.
+Reactive forms support built-in validators like `required` and `email`, and Angular’s validation guide covers displaying useful feedback for both reactive and template-driven forms [web:305][web:323][web:318].
 
-### Hard Challenges
+Common validators:
+- `Validators.required`
+- `Validators.email`
+- `Validators.minLength`
+- `Validators.maxLength`
+- `Validators.pattern`
 
-- Build a live search flow.
-- Combine route data and API data.
-- Refactor nested subscriptions into operator chains.
-- Add loading behavior to a stream-driven request.
-- Build a multi-stream summary component.
+## Practical Example
 
-### Reflection Questions
+```ts
+import { Component } from '@angular/core';
+import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
-- Why are operators important in RxJS?
-- When should you use `switchMap`?
-- Why is `tap` useful?
-- How does `combineLatest` help with multiple sources?
-- Why should nested subscriptions be avoided?
+@Component({
+  selector: 'app-signup-form',
+  standalone: true,
+  imports: [ReactiveFormsModule],
+  template: `
+    <form [formGroup]="signupForm" (ngSubmit)="submit()">
+      <input formControlName="username" placeholder="Username" />
+      <input formControlName="password" type="password" placeholder="Password" />
+      <button type="submit" [disabled]="signupForm.invalid">Create account</button>
+    </form>
+  `
+})
+export class SignupFormComponent {
+  signupForm = new FormGroup({
+    username: new FormControl('', [Validators.required, Validators.minLength(3)]),
+    password: new FormControl('', [Validators.required, Validators.minLength(8)])
+  });
 
-### Day Deliverable
+  submit() {
+    console.log(this.signupForm.value);
+  }
+}
+```
 
-Create one RxJS example that includes:
+## Best Practices
 
-- At least three operators.
-- One filtered stream.
-- One transformed stream.
-- One stream combination or switch.
-- A simple subscription or observable output.
+- Use reactive forms for medium to complex forms.
+- Keep form structure in the component.
+- Use validators in code for clarity.
+- Read form state from the `FormGroup`.
+- Disable submit when the form is invalid.
 
-### Suggested Practice Flow
+## Easy Challenges
 
-1. Start with a simple stream.
-2. Add one operator at a time.
-3. Test filtering and transforming.
-4. Try combining streams.
-5. Build one input-driven example.
+- Create one `FormControl`.
+- Build a `FormGroup` with two fields.
+- Bind the form with `[formGroup]`.
+- Add `Validators.required`.
+- Submit and log the form value.
+
+## Medium Challenges
+
+- Add email validation.
+- Show when the form is invalid.
+- Use `Validators.minLength`.
+- Reset the form after submit.
+- Build a small sign-up form.
+
+## Hard Challenges
+
+- Create a multi-field profile form.
+- Add multiple validators per control.
+- Display validation messages conditionally.
+- Split the form into logical sections.
+- Refactor repeated validation patterns.
+
+## Reflection Questions
+
+- Why are reactive forms better for complex forms?
+- What does `FormGroup` manage?
+- What does `FormControl` represent?
+- Why is `ReactiveFormsModule` required?
+- When should you choose reactive forms over template-driven forms?
+
+## Day Deliverable
+
+Create one reactive form that includes:
+
+- `ReactiveFormsModule`
+- One `FormGroup`
+- At least two `FormControl`s
+- One built-in validator
+- One submit handler
+
+## Suggested Practice Flow
+
+1. Import `ReactiveFormsModule`.
+2. Create a `FormGroup`.
+3. Add controls and validators.
+4. Bind the form in the template.
+5. Submit and log values.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 31
+## Note for Day 31
 
-Next day will cover higher-level reactive patterns and how to use streams more cleanly in Angular components and services.
+Next day covers **Validation Patterns**, which builds on reactive forms and template-driven forms with better feedback rules.
