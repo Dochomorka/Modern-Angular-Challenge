@@ -1,234 +1,149 @@
-## Day 23 — Custom Validators
+# Day 23 — Core Operators: `map`, `tap`, `filter`
 
-Day 23 is about creating your own validation rules when Angular’s built-in validators are not enough. Custom validators help you enforce app-specific rules, like password strength, forbidden names, matching fields, or business-specific input formats.
+Day 23 is about the most common RxJS operators you’ll use in Angular. These operators help you transform values, inspect values, and keep only the values you want inside a stream [web:237][web:234][web:239].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand when a custom validator is needed.
-- Create a reusable validator function.
-- Attach a custom validator to a control or form group.
-- Return validation errors in the correct format.
-- Show custom error messages in the template.
-- Keep validation logic separate from UI logic.
+- Use `map` to transform values.
+- Use `tap` to inspect values without changing them.
+- Use `filter` to remove unwanted values.
+- Chain operators with `pipe()`.
+- Understand how operators simplify stream logic.
+- Apply these operators in Angular components and services.
 
-### Why This Matters
+## Why This Matters
 
-Built-in validators cover common cases, but real apps usually need custom rules. A booking form might need a date check, a signup form might need a password rule, and a profile form might need forbidden words or unique naming rules.
+RxJS operators are what make streams powerful. Instead of manually transforming values after subscription, you can shape the data directly inside the pipeline [web:237][web:234].
 
-Custom validators help you:
-- Encode business rules.
-- Reuse validation logic.
-- Keep forms consistent.
-- Make error handling more specific.
+They help you:
+- Keep logic readable.
+- Avoid repeated manual code.
+- Build cleaner async flows.
+- Separate transformation from consumption.
 
-### Basic Validator Shape
+## `map`
 
-A validator usually checks a value and returns either `null` if it is valid or an error object if it is not.
-
-```ts
-export function forbiddenNameValidator(control: any) {
-  const value = control.value || '';
-  return value.toLowerCase().includes('admin')
-    ? { forbiddenName: true }
-    : null;
-}
-```
-
-If the value contains the forbidden text, the validator returns an error.
-
-### Using a Custom Validator
+`map` transforms each emitted value into something else.
 
 ```ts
-import { Component } from '@angular/core';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { of } from 'rxjs';
+import { map } from 'rxjs/operators';
 
-export function forbiddenNameValidator(control: any) {
-  const value = control.value || '';
-  return value.toLowerCase().includes('admin')
-    ? { forbiddenName: true }
-    : null;
-}
-
-@Component({
-  selector: 'app-profile-form',
-  standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="profileForm" (ngSubmit)="submit()">
-      <input formControlName="username" placeholder="Username" />
-
-      @if (username.touched && username.errors?.['required']) {
-        <p>Username is required.</p>
-      }
-      @if (username.touched && username.errors?.['forbiddenName']) {
-        <p>Username cannot contain admin.</p>
-      }
-
-      <button type="submit" [disabled]="profileForm.invalid">Save</button>
-    </form>
-  `
-})
-export class ProfileFormComponent {
-  profileForm = this.fb.group({
-    username: ['', [Validators.required, forbiddenNameValidator]]
-  });
-
-  constructor(private fb: FormBuilder) {}
-
-  get username() {
-    return this.profileForm.get('username')!;
-  }
-
-  submit() {
-    if (this.profileForm.invalid) {
-      this.profileForm.markAllAsTouched();
-      return;
-    }
-  }
-}
+of(1, 2, 3)
+  .pipe(map(value => value * 10))
+  .subscribe(value => console.log(value));
 ```
 
-### Control-Level vs Form-Level Validators
+## `tap`
 
-Custom validators can be applied to:
-- A single field.
-- A whole form group.
-
-Use a control-level validator when one field has a custom rule. Use a form-level validator when several fields must work together, like password confirmation or date ranges.
-
-### Example: Form-Level Validator
+`tap` lets you observe values for logging or side effects without changing them. It is best used for debugging or other side effects, not for transforming the emitted value [web:234][web:239].
 
 ```ts
-export function passwordsMatch(group: any) {
-  const password = group.get('password')?.value;
-  const confirmPassword = group.get('confirmPassword')?.value;
-  return password === confirmPassword ? null : { mismatch: true };
-}
+import { of } from 'rxjs';
+import { tap } from 'rxjs/operators';
+
+of('angular')
+  .pipe(tap(value => console.log('value:', value)))
+  .subscribe();
 ```
 
-This is useful when the rule depends on multiple values.
+## `filter`
 
-### Practical Example
+`filter` only lets matching values continue through the stream [web:237].
+
+```ts
+import { of } from 'rxjs';
+import { filter } from 'rxjs/operators';
+
+of(1, 2, 3, 4, 5)
+  .pipe(filter(value => value % 2 === 0))
+  .subscribe(value => console.log(value));
+```
+
+## Practical Example
 
 ```ts
 import { Component } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-
-function noSpacesValidator(control: any) {
-  const value = control.value || '';
-  return value.includes(' ') ? { noSpaces: true } : null;
-}
+import { of } from 'rxjs';
+import { map, tap, filter } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-signup-form',
+  selector: 'app-operator-demo',
   standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <label>
-        Username
-        <input formControlName="username" />
-      </label>
-
-      @if (username.touched && username.errors?.['required']) {
-        <p>Username is required.</p>
-      }
-      @if (username.touched && username.errors?.['noSpaces']) {
-        <p>Username cannot contain spaces.</p>
-      }
-
-      <label>
-        Password
-        <input type="password" formControlName="password" />
-      </label>
-
-      <button type="submit" [disabled]="form.invalid">Create account</button>
-    </form>
-  `
+  template: `<p>Check the console</p>`
 })
-export class SignupFormComponent {
-  form = this.fb.group({
-    username: ['', [Validators.required, noSpacesValidator]],
-    password: ['', [Validators.required, Validators.minLength(6)]]
-  });
-
-  constructor(private fb: FormBuilder) {}
-
-  get username() {
-    return this.form.get('username')!;
-  }
-
-  submit() {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
+export class OperatorDemoComponent {
+  constructor() {
+    of(1, 2, 3, 4, 5).pipe(
+      tap(value => console.log('original:', value)),
+      filter(value => value > 2),
+      map(value => value * 2)
+    ).subscribe(value => console.log('result:', value));
   }
 }
 ```
 
-### Best Practices
+## Best Practices
 
-- Keep validators small and focused.
-- Return `null` when valid.
-- Return a descriptive error key when invalid.
-- Reuse validator functions when possible.
-- Keep validation separate from template display logic.
-- Use form-level validators for cross-field rules.
+- Use `map` for transformation.
+- Use `tap` for logging or debugging.
+- Use `filter` for value selection.
+- Keep operator chains short and clear.
+- Prefer pipeline transforms over manual post-processing.
 
-### Easy Challenges
+## Easy Challenges
 
-- Create a validator that blocks a specific word.
-- Add a custom validator to one input.
-- Show a custom error message in the template.
-- Combine a custom validator with `required`.
-- Create a validator that rejects spaces.
+- Multiply each emitted number by 2 with `map`.
+- Log values using `tap`.
+- Filter even numbers with `filter`.
+- Chain two operators with `pipe()`.
+- Create a stream that transforms strings.
 
-### Medium Challenges
+## Medium Challenges
 
-- Build a username validator with forbidden names.
-- Create a password-strength validator.
-- Add a form-level validator for matching passwords.
-- Reuse one validator across two forms.
-- Show different messages for different custom errors.
+- Convert task titles to uppercase.
+- Filter out short strings from a list.
+- Use `tap` to inspect values before transformation.
+- Build a number stream with two operators.
+- Combine `map` and `filter` in one pipeline.
 
-### Hard Challenges
+## Hard Challenges
 
-- Build a signup form with multiple custom validators.
-- Add a date-range validator.
-- Create a reusable validator file for your app.
-- Validate one field based on another field’s value.
-- Refactor custom rules out of the component into shared functions.
+- Build a search input pipeline with `filter` and `map`.
+- Refactor manual data processing into operators.
+- Create a task list stream with transformed labels.
+- Use `tap` for debugging without changing values.
+- Build a stream that cleans and formats user input.
 
-### Reflection Questions
+## Reflection Questions
 
-- When should you create a custom validator?
-- What should a validator return when the value is valid?
-- Why are form-level validators useful?
-- How do reusable validators improve code quality?
-- What is the benefit of keeping validator logic outside the template?
+- What does `map` change?
+- Why is `tap` useful?
+- When should you use `filter`?
+- Why are operators better than manual transforms?
+- What does `pipe()` do?
 
-### Day Deliverable
+## Day Deliverable
 
-Create one reactive form with:
+Create one observable pipeline that includes:
 
-- At least one custom validator.
-- At least one built-in validator.
-- A visible custom error message.
-- A submit button that respects form validity.
-- Optional: one form-level validator.
+- `map`
+- `tap`
+- `filter`
+- One subscription
+- A clear transformed result
 
-### Suggested Practice Flow
+## Suggested Practice Flow
 
-1. Decide on a custom rule.
-2. Write the validator function.
-3. Attach it to a control or form group.
-4. Show the error message in the template.
-5. Test valid and invalid cases.
+1. Start with a simple observable.
+2. Add `tap`.
+3. Add `filter`.
+4. Add `map`.
+5. Observe how the output changes.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 24
+## Note for Day 24
 
-Next day will cover form arrays and dynamic forms, which let you build inputs that can grow or shrink at runtime.
+Next day covers **Higher-order operators: `switchMap`, `mergeMap`, `concatMap`**, which is the next step in building stronger RxJS pipelines.
