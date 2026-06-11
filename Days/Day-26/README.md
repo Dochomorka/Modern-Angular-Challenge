@@ -1,248 +1,173 @@
-## Day 26 — Submitting Forms to APIs
+# Day 26 — Error Handling: `catchError`, `retry`, `throwError`
 
-Day 26 is about connecting your forms to a backend so user input can actually be saved. The goal is to take validated form data, send it with an HTTP request, and handle the response cleanly in the UI.
+Day 26 is about handling failures in RxJS streams so your Angular app stays predictable and resilient. `catchError` lets you replace or transform an error, `retry` lets you try again, and `throwError` creates an observable that emits an error signal [web:262][web:263][web:265].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Collect form data from a reactive form.
-- Send that data to an API.
-- Handle success and error responses.
-- Show loading while submission is in progress.
-- Reset or update the form after success.
-- Keep form submission logic organized.
+- Catch stream errors safely.
+- Retry failed observables a limited number of times.
+- Create explicit error observables with `throwError`.
+- Return fallback values when needed.
+- Decide when to retry and when to stop.
+- Keep user-facing flows stable during failures.
 
-### Why This Matters
+## Why This Matters
 
-A form is only useful when it does something after submission. In real apps, users create accounts, send messages, place orders, update profiles, and upload records through forms.
+Network calls, validation, and user-driven workflows can fail at any time. RxJS error handling helps you recover gracefully instead of breaking the entire stream [web:262][web:265][web:270].
 
 This matters because:
-- Form data reaches your backend.
-- The UI can respond to success or failure.
-- Users get feedback on what happened.
-- Submission logic stays predictable.
+- Users should see a fallback instead of a crash.
+- Retry can recover from temporary failures.
+- Explicit errors help with validation and branching.
+- Better handling makes debugging easier.
 
-### Basic Submission Flow
+## `catchError`
 
-A simple form submission usually follows this pattern:
-
-1. Validate the form.
-2. Mark fields as touched if invalid.
-3. Send the data to the API.
-4. Show loading while waiting.
-5. Handle success or failure.
-6. Reset or keep the form based on the result.
-
-### Example: Sending Form Data
+`catchError` intercepts an error and lets you return a replacement observable or rethrow the error [web:262][web:270].
 
 ```ts
-import { Component, inject } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { of, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+
+of(1).pipe(
+  catchError(err => of('fallback'))
+).subscribe(console.log);
+```
+
+Use it when:
+- You want a fallback value.
+- You want to show a friendly message.
+- You need to recover from a failed request.
+
+## `retry`
+
+`retry` resubscribes to the source observable when an error occurs, up to the number of times you specify [web:264][web:270][web:262].
+
+```ts
+import { throwError } from 'rxjs';
+import { retry } from 'rxjs/operators';
+
+throwError(() => new Error('fail')).pipe(
+  retry(2)
+).subscribe({
+  error: err => console.log('still failed')
+});
+```
+
+Use it when:
+- Failures may be temporary.
+- A second attempt might succeed.
+- You want automatic recovery before handling the error.
+
+## `throwError`
+
+`throwError` creates an observable that immediately emits an error notification upon subscription. In modern RxJS, it is recommended to pass a factory function [web:263].
+
+```ts
+import { throwError } from 'rxjs';
+
+throwError(() => new Error('Invalid input')).subscribe({
+  error: err => console.log(err.message)
+});
+```
+
+Use it when:
+- You need to return an observable that fails.
+- You are inside operators like `switchMap` or `mergeMap`.
+- You want to signal a validation or business-rule failure [web:263].
+
+## Practical Example
+
+```ts
+import { Component } from '@angular/core';
+import { of, throwError } from 'rxjs';
+import { catchError, retry, switchMap } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-contact-form',
+  selector: 'app-error-demo',
   standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <input formControlName="name" placeholder="Name" />
-      <input formControlName="email" placeholder="Email" />
-      <textarea formControlName="message" placeholder="Message"></textarea>
-
-      <button type="submit" [disabled]="form.invalid || loading">
-        {{ loading ? 'Sending...' : 'Send' }}
-      </button>
-    </form>
-
-    @if (success) {
-      <p>Message sent successfully.</p>
-    }
-
-    @if (error) {
-      <p>Something went wrong.</p>
-    }
-  `
+  template: `<p>Check the console</p>`
 })
-export class ContactFormComponent {
-  private fb = inject(FormBuilder);
-  private http = inject(HttpClient);
-
-  loading = false;
-  success = false;
-  error = false;
-
-  form = this.fb.group({
-    name: ['', Validators.required],
-    email: ['', [Validators.required, Validators.email]],
-    message: ['', Validators.required]
-  });
-
-  submit() {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    this.loading = true;
-    this.success = false;
-    this.error = false;
-
-    this.http.post('https://example.com/api/contact', this.form.value).subscribe({
-      next: () => {
-        this.loading = false;
-        this.success = true;
-        this.form.reset();
-      },
-      error: () => {
-        this.loading = false;
-        this.error = true;
-      }
-    });
+export class ErrorDemoComponent {
+  constructor() {
+    of('load').pipe(
+      switchMap(() => throwError(() => new Error('Request failed'))),
+      retry(2),
+      catchError(() => of('fallback data'))
+    ).subscribe(console.log);
   }
 }
 ```
 
-### What to Notice
+## Operator Roles
 
-- The form is validated before submission.
-- The submit button is disabled while loading.
-- Success and error states are shown separately.
-- The form resets after a successful request.
+| Operator | What it does | Best use |
+|---|---|---|
+| `catchError` | Handles an error and returns a new observable | Fallbacks, friendly recovery |
+| `retry` | Resubscribes after failure | Temporary network issues |
+| `throwError` | Produces an error observable | Validation, explicit failure |
 
-### Submission Best Practices
+## Best Practices
 
-- Never submit invalid forms.
-- Show loading during the request.
-- Handle errors gracefully.
-- Clear success or error messages before retrying.
-- Reset the form only after success if that fits the use case.
-- Keep API calls in a service when the app grows.
+- Retry only when recovery is plausible.
+- Use `catchError` to keep the stream alive.
+- Use `throwError` when you need to fail inside a pipe.
+- Return a fallback value when user experience matters.
+- Keep error handling close to the failing operation.
 
-### Common Submission Cases
+## Easy Challenges
 
-- Contact form.
-- Login form.
-- Signup form.
-- Profile update form.
-- Checkout form.
-- Comment form.
+- Catch an error and return a fallback string.
+- Retry a failing observable twice.
+- Emit a custom error with `throwError`.
+- Log an error before returning fallback data.
+- Compare retry success vs retry failure.
 
-### Practical Example
+## Medium Challenges
 
-```ts
-import { Component, inject } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+- Wrap an HTTP-like request with `catchError`.
+- Add `retry(3)` before `catchError`.
+- Create a validation rule using `throwError`.
+- Show fallback UI data after failure.
+- Simulate a request that succeeds on retry.
 
-@Component({
-  selector: 'app-feedback-form',
-  standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <input formControlName="title" placeholder="Title" />
-      <textarea formControlName="comment" placeholder="Comment"></textarea>
+## Hard Challenges
 
-      <button type="submit" [disabled]="form.invalid || loading">
-        Submit Feedback
-      </button>
-    </form>
+- Build a request pipeline with retry and fallback.
+- Use `throwError` inside `switchMap`.
+- Separate user-facing errors from technical errors.
+- Compare retry-first vs catch-first behavior.
+- Create a reusable error-handling pattern.
 
-    @if (statusMessage) {
-      <p>{{ statusMessage }}</p>
-    }
-  `
-})
-export class FeedbackFormComponent {
-  private fb = inject(FormBuilder);
-  private http = inject(HttpClient);
+## Reflection Questions
 
-  loading = false;
-  statusMessage = '';
+- When should you retry instead of failing immediately?
+- What does `catchError` return?
+- Why use `throwError` inside a pipe?
+- What happens if an observable never recovers?
+- How should fallback data affect the UI?
 
-  form = this.fb.group({
-    title: ['', Validators.required],
-    comment: ['', Validators.required]
-  });
+## Day Deliverable
 
-  submit() {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      this.statusMessage = 'Please fill in all required fields.';
-      return;
-    }
+Create one example that includes:
 
-    this.loading = true;
-    this.statusMessage = '';
+- One `catchError` flow.
+- One `retry` flow.
+- One `throwError` flow.
+- One fallback value.
+- One realistic Angular use case.
 
-    this.http.post('https://example.com/api/feedback', this.form.value).subscribe({
-      next: () => {
-        this.loading = false;
-        this.statusMessage = 'Feedback submitted successfully.';
-        this.form.reset();
-      },
-      error: () => {
-        this.loading = false;
-        this.statusMessage = 'Submission failed. Please try again.';
-      }
-    });
-  }
-}
-```
+## Suggested Practice Flow
 
-### Easy Challenges
-
-- Submit a valid form to a fake API.
-- Disable the submit button while loading.
-- Show a success message after submit.
-- Show an error message when the request fails.
-- Reset the form after success.
-
-### Medium Challenges
-
-- Build a contact form that posts to an endpoint.
-- Add loading, success, and error states.
-- Move submission logic into a service.
-- Show validation errors before sending.
-- Keep the form usable after a failed request.
-
-### Hard Challenges
-
-- Build a profile update form with API submission.
-- Add form submission with file upload preparation.
-- Handle different server error responses.
-- Create a reusable submit helper in a service.
-- Refactor the form so the component only handles UI state.
-
-### Reflection Questions
-
-- Why should invalid forms not be submitted?
-- What should the UI show while a request is in progress?
-- When should a form reset after submission?
-- Why is it useful to move submission logic into a service?
-- How do success and error messages improve UX?
-
-### Day Deliverable
-
-Create one form that includes:
-
-- Validation before submit.
-- An HTTP submission request.
-- A loading state.
-- A success state.
-- An error state.
-
-### Suggested Practice Flow
-
-1. Build or reuse a reactive form.
-2. Add submit validation.
-3. Send form data to an API.
-4. Show loading and status messages.
-5. Reset the form after success if needed.
+1. Create a failing observable.
+2. Add `retry`.
+3. Add `catchError`.
+4. Use `throwError` for explicit failure.
+5. Test fallback behavior.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 27
+## Note for Day 27
 
-Next day will cover API abstractions and service organization, which will help you keep request logic clean as your app grows.
+Next day covers **Subjects and Multicasting**, which is the next step in sharing values across multiple subscribers.
