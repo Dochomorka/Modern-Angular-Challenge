@@ -1,236 +1,192 @@
-## Day 27 — API Abstractions and Service Organization
+# Day 27 — Subjects and Multicasting
 
-Day 27 is about keeping your API code clean as the app grows. The main idea is to move request logic out of components and into well-structured services so your UI stays simple and your data layer stays reusable.
+Day 27 is about Subjects and how they let one stream be shared across multiple subscribers. In RxJS, a Subject is a special kind of observable that multicasts values, meaning one execution can feed many observers [web:278][web:280][web:271].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Keep API calls out of components.
-- Organize requests inside services.
-- Reuse methods for multiple endpoints.
-- Separate API logic from UI logic.
-- Return typed data from service methods.
-- Keep your app easier to test and maintain.
+- Explain what a Subject is.
+- Understand multicasting.
+- Use `Subject` for shared events.
+- Use `BehaviorSubject` for current state.
+- Use `ReplaySubject` for replaying recent values.
+- Use `AsyncSubject` for final-value delivery.
 
-### Why This Matters
+## Why This Matters
 
-Once an app starts talking to several endpoints, component code can get messy fast. If every screen handles its own request logic, you end up with duplication, inconsistent error handling, and harder maintenance.
+Plain observables are often unicast, so each subscriber gets its own execution. Subjects solve the shared-stream problem by broadcasting the same values to multiple subscribers [web:274][web:278][web:271].
 
-Good service organization helps you:
-- Reuse request logic.
-- Centralize error handling.
-- Keep components focused on display.
-- Make future changes easier.
+This matters because:
+- Multiple components may need the same data.
+- You may want to share UI events.
+- State often needs to be read by late subscribers.
+- Shared execution avoids duplicated work.
 
-### Basic Service Structure
+## `Subject`
 
-A service should usually handle:
-- HTTP requests.
-- Request URLs.
-- Response typing.
-- Optional transformation of data.
-- Shared helpers for related endpoints.
-
-### Example: Posts Service
+A `Subject` is both an observable and an observer. It does not store old values, so new subscribers only receive future emissions [web:278][web:272][web:280].
 
 ```ts
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Subject } from 'rxjs';
 
-interface Post {
-  id: number;
-  title: string;
-  body: string;
-}
+const subject = new Subject<string>();
 
-@Injectable({
-  providedIn: 'root'
-})
-export class PostsService {
-  private http = inject(HttpClient);
-  private baseUrl = 'https://jsonplaceholder.typicode.com/posts';
+subject.subscribe(value => console.log('A:', value));
+subject.next('hello');
 
-  getAll(): Observable<Post[]> {
-    return this.http.get<Post[]>(this.baseUrl);
-  }
-
-  getById(id: number): Observable<Post> {
-    return this.http.get<Post>(`${this.baseUrl}/${id}`);
-  }
-
-  create(post: Pick<Post, 'title' | 'body'>): Observable<Post> {
-    return this.http.post<Post>(this.baseUrl, post);
-  }
-}
+subject.subscribe(value => console.log('B:', value));
+subject.next('world');
 ```
 
-### What to Notice
+## `BehaviorSubject`
 
-- The service owns the endpoint details.
-- The methods are typed.
-- The component does not need to know how the HTTP call works.
-- Related request methods live together.
+A `BehaviorSubject` stores the latest value and emits it immediately to new subscribers. It also requires an initial value [web:272][web:278][web:275].
 
-### Keeping Components Thin
-
-A component should mostly:
-- Call the service.
-- Store UI state.
-- Show loading or errors.
-- Render the result.
-
-It should not be responsible for request URLs, request formatting, or response transformation unless the logic is very small.
-
-### Example: Component Using the Service
+Use it when:
+- You need current state.
+- Late subscribers should see the latest value.
+- You are modeling app state, auth status, or selected items.
 
 ```ts
-import { Component, inject } from '@angular/core';
-import { AsyncPipe } from '@angular/common';
-import { PostsService } from './posts.service';
+import { BehaviorSubject } from 'rxjs';
+
+const state$ = new BehaviorSubject<string>('idle');
+
+state$.subscribe(value => console.log('A:', value));
+state$.next('loading');
+
+state$.subscribe(value => console.log('B:', value));
+```
+
+## `ReplaySubject`
+
+A `ReplaySubject` replays a configurable number of previous values to new subscribers [web:272][web:278][web:275].
+
+Use it when:
+- New subscribers need past events.
+- You want to keep recent history.
+- You are modeling chat messages or event logs.
+
+```ts
+import { ReplaySubject } from 'rxjs';
+
+const replay$ = new ReplaySubject<string>(2);
+
+replay$.next('one');
+replay$.next('two');
+replay$.next('three');
+
+replay$.subscribe(value => console.log(value));
+```
+
+## `AsyncSubject`
+
+An `AsyncSubject` emits only the last value, and only after completion [web:272][web:278][web:275].
+
+Use it when:
+- Only the final result matters.
+- You have a one-time process.
+- You want a completion-based summary value.
+
+## Practical Example
+
+```ts
+import { Component } from '@angular/core';
+import { Subject, BehaviorSubject } from 'rxjs';
 
 @Component({
-  selector: 'app-post-list',
+  selector: 'app-subject-demo',
   standalone: true,
-  imports: [AsyncPipe],
-  template: `
-    <section>
-      <h2>Posts</h2>
-
-      @if (posts$ | async; as posts) {
-        <ul>
-          @for (post of posts; track post.id) {
-            <li>{{ post.title }}</li>
-          }
-        </ul>
-      }
-    </section>
-  `
+  template: `<p>Check the console</p>`
 })
-export class PostListComponent {
-  private postsService = inject(PostsService);
-  posts$ = this.postsService.getAll();
-}
-```
+export class SubjectDemoComponent {
+  event$ = new Subject<string>();
+  state$ = new BehaviorSubject<string>('initial');
 
-### Service Organization Tips
+  constructor() {
+    this.event$.subscribe(value => console.log('event A:', value));
+    this.state$.subscribe(value => console.log('state A:', value));
 
-- Group related endpoints into one service.
-- Use one service per feature or domain.
-- Keep names clear and consistent.
-- Use helper methods when multiple requests share setup.
-- Avoid putting unrelated endpoints in the same file.
+    this.event$.next('clicked');
+    this.state$.next('ready');
 
-Good examples:
-- `AuthService` for login and session actions.
-- `UsersService` for user profile endpoints.
-- `PostsService` for posts and comments.
-- `TasksService` for task-related requests.
+    this.event$.subscribe(value => console.log('event B:', value));
+    this.state$.subscribe(value => console.log('state B:', value));
 
-### Practical Example
-
-```ts
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-
-interface Task {
-  id: number;
-  title: string;
-  done: boolean;
-}
-
-@Injectable({
-  providedIn: 'root'
-})
-export class TasksService {
-  private http = inject(HttpClient);
-  private baseUrl = '/api/tasks';
-
-  getTasks(): Observable<Task[]> {
-    return this.http.get<Task[]>(this.baseUrl);
-  }
-
-  addTask(title: string): Observable<Task> {
-    return this.http.post<Task>(this.baseUrl, { title, done: false });
-  }
-
-  toggleTask(task: Task): Observable<Task> {
-    return this.http.put<Task>(`${this.baseUrl}/${task.id}`, {
-      ...task,
-      done: !task.done
-    });
-  }
-
-  deleteTask(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+    this.event$.next('submitted');
   }
 }
 ```
 
-This keeps all task-related request logic in one place.
+## Choosing the Right Type
 
-### Best Practices
+| Type | Stores previous values? | New subscriber gets current value? | Best use |
+|---|---|---|---|
+| `Subject` | No | No | Events, notifications |
+| `BehaviorSubject` | Latest only | Yes | State, current value |
+| `ReplaySubject` | Yes, configurable | Yes | History, late subscribers |
+| `AsyncSubject` | Only final value | Only on completion | Final result after completion |
 
-- Put API code in services, not components.
-- Type request and response data.
-- Keep each service focused on one domain.
-- Use small methods with clear names.
-- Handle common errors in a shared way when possible.
-- Return observables from service methods.
+## Best Practices
 
-### Easy Challenges
+- Use `Subject` for events, not state.
+- Use `BehaviorSubject` for shared state that needs a current value.
+- Use `ReplaySubject` only when replay is really needed.
+- Use `AsyncSubject` for completion-based outputs.
+- Be careful not to expose subjects directly when a read-only observable is enough.
 
-- Move one HTTP call from a component into a service.
-- Create one typed `getAll()` method.
-- Add one `getById()` method.
-- Rename endpoints clearly.
-- Use the service from a component template flow.
+## Easy Challenges
 
-### Medium Challenges
+- Create a `Subject` and send three values.
+- Add two subscribers to one subject.
+- Try a `BehaviorSubject` with an initial value.
+- Replay the last two values with `ReplaySubject`.
+- Complete an `AsyncSubject` and observe the output.
 
-- Build a `TasksService` with list, create, and delete methods.
-- Split auth and task API logic into separate services.
-- Add typed interfaces for API responses.
-- Keep loading state in the component and requests in the service.
-- Create a reusable base URL constant.
+## Medium Challenges
 
-### Hard Challenges
+- Build a shared event bus with `Subject`.
+- Build a loading state with `BehaviorSubject`.
+- Build a recent notifications stream with `ReplaySubject`.
+- Show how late subscribers behave differently.
+- Compare all four subject types in one file.
 
-- Organize an app into feature-based services.
-- Add request transformation inside a service.
-- Centralize error mapping for multiple endpoints.
-- Create a service that wraps a full CRUD resource.
-- Refactor a component-heavy API screen into service-driven design.
+## Hard Challenges
 
-### Reflection Questions
+- Create a shared Angular service with `BehaviorSubject`.
+- Build a component communication pattern with `Subject`.
+- Model a cached message stream with `ReplaySubject`.
+- Use `AsyncSubject` for a one-time completion result.
+- Refactor a manual state variable into a subject-based stream.
 
-- Why should API calls live in services?
-- How does service organization reduce duplication?
-- When should a service be split into smaller services?
-- Why are typed methods helpful?
-- What belongs in the component versus the service?
+## Reflection Questions
 
-### Day Deliverable
+- Why is a Subject multicasting?
+- Why does `BehaviorSubject` need an initial value?
+- When should you prefer `ReplaySubject` over `BehaviorSubject`?
+- Why does `AsyncSubject` wait for completion?
+- What problem does multicasting solve in Angular?
 
-Create one feature service that includes:
+## Day Deliverable
 
-- At least two request methods.
-- Typed request or response data.
-- A clear base URL or endpoint structure.
-- One component that consumes the service.
-- Minimal API logic inside the component.
+Create one example that includes:
 
-### Suggested Practice Flow
+- One `Subject`.
+- One `BehaviorSubject`.
+- One `ReplaySubject` or `AsyncSubject`.
+- Two subscribers to the same stream.
+- A short note on when each should be used.
 
-1. Identify one feature domain.
-2. Move its request logic into a service.
-3. Add typed methods.
-4. Use the service from a component.
-5. Keep the component focused on UI state.
+## Suggested Practice Flow
+
+1. Create a plain `Subject`.
+2. Add multiple subscribers.
+3. Compare with `BehaviorSubject`.
+4. Test `ReplaySubject`.
+5. Observe `AsyncSubject`.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 28
+## Note for Day 28
 
-Next day will cover interceptors, which help you apply shared request behavior like headers, auth tokens, and error handling across all HTTP calls.
+Next day covers **Schedulers and Performance**, which is the next step in understanding how RxJS work is scheduled and executed.
