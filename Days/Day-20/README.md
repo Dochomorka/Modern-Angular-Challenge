@@ -1,199 +1,177 @@
-## Day 20 — Forms Basics
+# Day 20 — Interceptors and Request Patterns
 
-Day 20 is about learning how Angular forms work and how to capture user input cleanly. The main idea is to connect input fields to component state so you can read, validate, and submit user-entered data.
+Day 20 is about using Angular HTTP interceptors to apply shared behavior to all requests in one place. Interceptors can inspect or transform outgoing requests and incoming responses, which makes them ideal for auth headers, logging, error handling, and request-wide patterns [web:199][web:215][web:192].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what Angular forms are for.
-- Use basic form controls like inputs, textareas, and selects.
-- Bind form values to component state.
-- Handle form submission.
-- Understand the difference between template-driven and reactive forms at a basic level.
-- Build a simple form with validation.
+- Understand what an interceptor does.
+- Add a header to outgoing requests.
+- Attach an auth token globally.
+- Log requests and responses.
+- Handle common errors centrally.
+- Recognize when request patterns belong in an interceptor instead of a service.
 
-### Why This Matters
+## Why This Matters
 
-Forms are one of the most common parts of any app. Login screens, search fields, checkout forms, profile editors, and comment boxes all depend on good form handling.
+Without interceptors, the same request setup often gets repeated in many services. That usually means duplicated headers, duplicated auth logic, and inconsistent error handling across the app [web:199][web:201].
 
-A solid form setup helps you:
-- Capture user input.
-- Validate data before sending it.
-- Give clear feedback.
-- Prevent bad submissions.
+Interceptors help you:
+- Keep services smaller.
+- Centralize cross-cutting HTTP behavior.
+- Make auth and logging consistent.
+- Simplify API request code.
 
-### Basic Form Ideas
+## Basic Idea
 
-At a minimum, a form has:
-- Inputs.
-- A submit action.
-- A model for the values.
-- Validation or checks.
+An interceptor sits in the HTTP pipeline. It receives a request, can clone and modify it, and then passes it on to the next handler. Angular’s interceptor docs explain that most interceptors transform the outgoing request before forwarding it [web:199][web:215].
 
-A simple Angular form usually connects the template to component state and then reacts when the user submits it.
-
-### Example: Simple Contact Form
+## Example: Add an Auth Header
 
 ```ts
-import { Component } from '@angular/core';
+import { HttpInterceptorFn } from '@angular/common/http';
 
-@Component({
-  selector: 'app-contact-form',
-  standalone: true,
-  template: `
-    <form (ngSubmit)="submit()">
-      <label>
-        Name
-        <input type="text" [(ngModel)]="name" name="name" />
-      </label>
+export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  const token = 'demo-token';
 
-      <label>
-        Message
-        <textarea [(ngModel)]="message" name="message"></textarea>
-      </label>
-
-      <button type="submit">Send</button>
-    </form>
-
-    @if (submitted) {
-      <p>Thanks, {{ name }}. Your message was sent.</p>
+  const modifiedReq = req.clone({
+    setHeaders: {
+      Authorization: `Bearer ${token}`
     }
-  `
-})
-export class ContactFormComponent {
-  name = '';
-  message = '';
-  submitted = false;
+  });
 
-  submit() {
-    this.submitted = true;
-  }
-}
+  return next(modifiedReq);
+};
 ```
 
-### What to Notice
+This adds the same authorization header to every request handled by the interceptor [web:199][web:201].
 
-- The form uses `ngSubmit` for submission.
-- The fields are connected to component properties.
-- The component stores the submitted state.
-- The template shows feedback after submit.
-
-### Template-Driven vs Reactive
-
-There are two common form styles in Angular:
-
-- **Template-driven forms**: simpler, more HTML-focused, good for small forms.
-- **Reactive forms**: more explicit and scalable, good for complex forms.
-
-For now, the key idea is to understand that Angular gives you a structured way to manage user input instead of reading values manually from the DOM.
-
-### Validation Basics
-
-Forms should usually check for required values before submission.
-
-Common validation ideas:
-- Required fields.
-- Minimum length.
-- Email format.
-- Disabled submit button until valid.
-
-Example:
-
-```html
-<input type="text" name="name" [(ngModel)]="name" required />
-```
-
-### Practical Example
+## Example: Log Requests
 
 ```ts
-import { Component } from '@angular/core';
+import { HttpInterceptorFn } from '@angular/common/http';
+import { tap } from 'rxjs';
 
-@Component({
-  selector: 'app-login-form',
-  standalone: true,
-  template: `
-    <form (ngSubmit)="login()">
-      <label>
-        Email
-        <input type="email" [(ngModel)]="email" name="email" />
-      </label>
+export const loggingInterceptor: HttpInterceptorFn = (req, next) => {
+  console.log('Request:', req.method, req.url);
 
-      <label>
-        Password
-        <input type="password" [(ngModel)]="password" name="password" />
-      </label>
-
-      <button type="submit">Login</button>
-    </form>
-
-    @if (submitted) {
-      <p>Login submitted for {{ email }}</p>
-    }
-  `
-})
-export class LoginFormComponent {
-  email = '';
-  password = '';
-  submitted = false;
-
-  login() {
-    this.submitted = true;
-  }
-}
+  return next(req).pipe(
+    tap({
+      next: () => console.log('Response received'),
+      error: () => console.log('Request failed')
+    })
+  );
+};
 ```
 
-### Easy Challenges
+This is useful when you want to trace HTTP activity in one place [web:199][web:201].
 
-- Create a form with one input.
-- Add a submit button.
-- Store the input value in a component property.
-- Show a message after submit.
-- Add a second field to the form.
+## Example: Handle Errors
 
-### Medium Challenges
+```ts
+import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
+import { catchError, throwError } from 'rxjs';
 
-- Build a contact form with name, email, and message.
-- Add a required field check.
-- Show submitted data on the page.
-- Disable submit until fields are filled.
-- Create a select dropdown in the form.
+export const errorInterceptor: HttpInterceptorFn = (req, next) => {
+  return next(req).pipe(
+    catchError((error: HttpErrorResponse) => {
+      console.error('HTTP error:', error.message);
+      return throwError(() => error);
+    })
+  );
+};
+```
 
-### Hard Challenges
+This keeps shared HTTP error behavior out of individual services [web:199][web:215].
 
-- Build a small login form with validation.
-- Create a profile form with multiple fields.
-- Show error messages when inputs are empty.
-- Refactor a form to keep all state in one component.
-- Prepare the form to send data to an API later.
+## Registering Interceptors
 
-### Reflection Questions
+Modern Angular allows interceptors to be registered through `provideHttpClient(...)` using `withInterceptors(...)` [web:192][web:189].
 
-- Why are forms important in Angular apps?
-- What is the purpose of `ngSubmit`?
-- Why is validation important before submit?
-- When should you use template-driven forms?
-- What kinds of forms does your app need most often?
+```ts
+import { ApplicationConfig } from '@angular/core';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { authInterceptor } from './auth.interceptor';
+import { loggingInterceptor } from './logging.interceptor';
 
-### Day Deliverable
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideHttpClient(
+      withInterceptors([authInterceptor, loggingInterceptor])
+    )
+  ]
+};
+```
 
-Create one form that includes:
+## Request Pattern Ideas
 
-- At least two inputs.
-- A submit button.
-- Component state for the values.
-- A submitted or success message.
-- At least one validation check.
+Interceptors are a good place for patterns that apply to many requests:
+- Attach auth tokens.
+- Add common headers.
+- Log traffic.
+- Normalize errors.
+- Retry failed requests in special cases.
 
-### Suggested Practice Flow
+## Best Practices
 
-1. Build a simple form.
-2. Connect fields to component state.
-3. Add submit handling.
-4. Add a validation check.
-5. Show feedback after submit.
+- Clone requests before modifying them.
+- Keep each interceptor focused on one concern.
+- Use interceptors for shared HTTP behavior, not feature-specific logic.
+- Keep services responsible for feature requests.
+- Centralize auth, logging, retries, and error handling where appropriate.
+
+## Easy Challenges
+
+- Add one custom header to all requests.
+- Log request URLs in the console.
+- Print a message when a response arrives.
+- Create a simple auth token interceptor.
+- Make one interceptor and test it with a GET request.
+
+## Medium Challenges
+
+- Add an auth header globally.
+- Create separate logging and error interceptors.
+- Show a different message for failed requests.
+- Apply a custom app header to all HTTP calls.
+- Move repeated request setup out of a service.
+
+## Hard Challenges
+
+- Build an interceptor chain with auth, logging, and error handling.
+- Add retry behavior for failed requests.
+- Centralize unauthorized handling.
+- Refactor a service so it no longer repeats headers.
+- Design a request layer that can support future auth refresh logic.
+
+## Reflection Questions
+
+- Why are interceptors better than repeating logic in services?
+- What should be modified in an interceptor?
+- Why do you need to clone a request?
+- What kinds of behavior belong in interceptors?
+- How do interceptors improve maintainability?
+
+## Day Deliverable
+
+Create one interceptor that:
+
+- Modifies outgoing requests.
+- Adds a shared header or token.
+- Logs or handles errors.
+- Applies globally.
+- Keeps service code cleaner.
+
+## Suggested Practice Flow
+
+1. Pick one shared HTTP concern.
+2. Write one interceptor for it.
+3. Register it in the app.
+4. Test it with a real request.
+5. Add logging or error behavior if useful.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 21
+## Note for Day 21
 
-Next day will cover reactive forms in more depth, which is the better fit for larger and more structured form logic.
+Next day covers **Observables and streams**, which is the RxJS foundation for Angular’s async workflows.
