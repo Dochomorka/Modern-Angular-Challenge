@@ -1,217 +1,182 @@
-## Day 24 — Form Arrays and Dynamic Forms
+# Day 24 — Higher-order Operators: `switchMap`, `mergeMap`, `concatMap`
 
-Day 24 is about building forms that can grow and shrink at runtime. Form arrays let you manage repeated fields like multiple phone numbers, skills, tags, or task items without hardcoding every input in advance.
+Day 24 is about higher-order mapping operators, which are used when one observable produces another observable. RxJS documents these as flattening operators for higher-order observables, and Angular apps use them frequently for API calls, search, and reactive workflows [web:246][web:248][web:243].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what a form array is.
-- Add items to a dynamic form.
-- Remove items from a dynamic form.
-- Render repeated controls in the template.
-- Build forms for lists of values.
-- Use dynamic forms for real-world data entry.
+- Understand what a higher-order observable is.
+- Know why `switchMap`, `mergeMap`, and `concatMap` exist.
+- Use `switchMap` for “latest value wins” flows.
+- Use `mergeMap` for parallel flows.
+- Use `concatMap` for ordered sequential flows.
+- Choose the right operator for a task.
 
-### Why This Matters
+## Why This Matters
 
-Not every form has a fixed number of fields. Sometimes users need to add multiple addresses, several email contacts, or an arbitrary list of skills. Form arrays make this possible without duplicating form code.
+Real Angular apps often need to turn one stream into another stream. A search box might trigger API calls, a save queue might need sequential requests, and a dashboard might need multiple independent requests at once [web:246][web:245][web:238].
 
-They help you:
-- Handle flexible input lists.
-- Keep the form structure organized.
-- Add and remove controls easily.
-- Model real-world data better.
+These operators help you:
+- Avoid nested subscriptions.
+- Control concurrency.
+- Preserve order when needed.
+- Cancel stale requests when the latest one matters.
 
-### Core Idea
+## Higher-order Idea
 
-A form array is a list of form controls or form groups. Instead of one static field, you have a collection that can change during user interaction.
+A higher-order observable is an observable that emits other observables. The mapping operators then “flatten” those inner observables into one output stream [web:246][web:248].
 
-### Example: Skills Form
+## `switchMap`
+
+`switchMap` keeps only the latest inner observable. When a new source value arrives, it unsubscribes from the previous inner stream and switches to the new one [web:246][web:245].
+
+Use it when:
+- Only the latest result matters.
+- You are building search/autocomplete.
+- You want to cancel stale requests.
+
+```ts
+import { of } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
+
+of('a', 'ab', 'abc').pipe(
+  switchMap(value => of(`Result for ${value}`))
+).subscribe(console.log);
+```
+
+## `mergeMap`
+
+`mergeMap` subscribes to all inner observables and merges their results as they arrive. It does not guarantee order, so it is useful when tasks are independent and can run in parallel [web:246][web:245].
+
+Use it when:
+- Requests can run independently.
+- Parallel behavior is fine.
+- You want all results, not just the latest.
+
+```ts
+import { of } from 'rxjs';
+import { mergeMap } from 'rxjs/operators';
+
+of(1, 2, 3).pipe(
+  mergeMap(value => of(`Item ${value}`))
+).subscribe(console.log);
+```
+
+## `concatMap`
+
+`concatMap` processes inner observables sequentially, waiting for one to complete before starting the next. RxJS docs note that it behaves like `mergeMap` with concurrency set to 1 [web:248][web:246].
+
+Use it when:
+- Order matters.
+- Requests must run one after another.
+- You are building a queue or save chain.
+
+```ts
+import { of } from 'rxjs';
+import { concatMap } from 'rxjs/operators';
+
+of(1, 2, 3).pipe(
+  concatMap(value => of(`Saved ${value}`))
+).subscribe(console.log);
+```
+
+## Practical Example
 
 ```ts
 import { Component } from '@angular/core';
-import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { of } from 'rxjs';
+import { switchMap, mergeMap, concatMap } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-skills-form',
+  selector: 'app-higher-order-demo',
   standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <div formArrayName="skills">
-        @for (skill of skills.controls; track $index) {
-          <div>
-            <input [formControlName]="$index" placeholder="Skill" />
-            <button type="button" (click)="removeSkill($index)">Remove</button>
-          </div>
-        }
-      </div>
-
-      <button type="button" (click)="addSkill()">Add Skill</button>
-      <button type="submit" [disabled]="form.invalid">Save</button>
-    </form>
-  `
+  template: `<p>Check the console</p>`
 })
-export class SkillsFormComponent {
-  form = this.fb.group({
-    skills: this.fb.array([
-      this.fb.control('', Validators.required)
-    ])
-  });
+export class HigherOrderDemoComponent {
+  constructor() {
+    of('search').pipe(
+      switchMap(term => of(`Latest only: ${term}`))
+    ).subscribe(console.log);
 
-  constructor(private fb: FormBuilder) {}
+    of(1, 2, 3).pipe(
+      mergeMap(value => of(`Parallel: ${value}`))
+    ).subscribe(console.log);
 
-  get skills(): FormArray {
-    return this.form.get('skills') as FormArray;
-  }
-
-  addSkill() {
-    this.skills.push(this.fb.control('', Validators.required));
-  }
-
-  removeSkill(index: number) {
-    this.skills.removeAt(index);
-  }
-
-  submit() {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
+    of(1, 2, 3).pipe(
+      concatMap(value => of(`Sequential: ${value}`))
+    ).subscribe(console.log);
   }
 }
 ```
 
-### What to Notice
+## Choosing the Right Operator
 
-- `FormArray` holds a dynamic list of controls.
-- `addSkill()` appends a new control.
-- `removeSkill()` deletes one control.
-- The template loops over the array and binds each control by index.
+| Operator | Behavior | Best Use |
+|---|---|---|
+| `switchMap` | Cancels the previous inner stream | Search, autocomplete, latest-only results |
+| `mergeMap` | Runs inner streams in parallel | Independent requests, parallel actions |
+| `concatMap` | Runs inner streams in order | Queues, ordered saves, sequential tasks |
 
-### When to Use Form Arrays
+## Best Practices
 
-Use form arrays when the number of inputs is not fixed:
-- Skills.
-- Phone numbers.
-- Email addresses.
-- Tasks.
-- Tags.
-- Addresses.
+- Use `switchMap` for requests driven by fast-changing input.
+- Use `mergeMap` when work can happen in parallel.
+- Use `concatMap` when order matters.
+- Avoid nested subscriptions where a higher-order operator fits.
+- Match the operator to the behavior you want, not just the syntax.
 
-### Practical Example
+## Easy Challenges
 
-```ts
-import { Component } from '@angular/core';
-import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+- Map one value to one inner observable with `switchMap`.
+- Run two independent inner streams with `mergeMap`.
+- Queue three values with `concatMap`.
+- Compare the output order of each operator.
+- Use each operator once in a small script.
 
-@Component({
-  selector: 'app-task-list-form',
-  standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <div formArrayName="tasks">
-        @for (task of tasks.controls; track $index) {
-          <div>
-            <input [formControlName]="$index" placeholder="Task title" />
-            <button type="button" (click)="removeTask($index)">Remove</button>
-          </div>
-        }
-      </div>
+## Medium Challenges
 
-      <button type="button" (click)="addTask()">Add Task</button>
-      <button type="submit">Submit</button>
-    </form>
-  `
-})
-export class TaskListFormComponent {
-  form = this.fb.group({
-    tasks: this.fb.array([
-      this.fb.control('Learn form arrays', Validators.required)
-    ])
-  });
+- Build a search flow with `switchMap`.
+- Simulate parallel saves with `mergeMap`.
+- Simulate ordered saves with `concatMap`.
+- Refactor nested subscriptions into one operator chain.
+- Explain when each operator should be used.
 
-  constructor(private fb: FormBuilder) {}
+## Hard Challenges
 
-  get tasks(): FormArray {
-    return this.form.get('tasks') as FormArray;
-  }
+- Build a live search example with cancelable requests.
+- Build a parallel request demo with merged results.
+- Build a sequential task queue with `concatMap`.
+- Compare operator behavior in one component.
+- Combine higher-order mapping with other operators from Day 23.
 
-  addTask() {
-    this.tasks.push(this.fb.control('', Validators.required));
-  }
+## Reflection Questions
 
-  removeTask(index: number) {
-    this.tasks.removeAt(index);
-  }
+- What is a higher-order observable?
+- Why does `switchMap` cancel previous streams?
+- When is `mergeMap` the right choice?
+- Why does `concatMap` preserve order?
+- How do these operators help avoid nested subscriptions?
 
-  submit() {
-    console.log(this.form.value);
-  }
-}
-```
+## Day Deliverable
 
-### Best Practices
+Create one example that includes:
 
-- Keep each dynamic item simple.
-- Use `track $index` when looping over form array controls.
-- Add validation to each item.
-- Prevent the array from becoming empty if your app needs at least one item.
-- Use form arrays for repeating values only; use form groups for structured objects.
+- One `switchMap` flow.
+- One `mergeMap` flow.
+- One `concatMap` flow.
+- A clear explanation of when each is used.
+- One real Angular-style use case.
 
-### Easy Challenges
+## Suggested Practice Flow
 
-- Create a form array with two items.
-- Add a button to append a new control.
-- Add a remove button for each item.
-- Display form values after submit.
-- Use validation on each array item.
+1. Start with a simple outer observable.
+2. Map it to inner observables.
+3. Test `switchMap`.
+4. Test `mergeMap`.
+5. Test `concatMap`.
+6. Compare their output and order.
 
-### Medium Challenges
+## Note for Day 25
 
-- Build a skills form with add/remove controls.
-- Create a phone-number list form.
-- Prevent empty values from being submitted.
-- Add a minimum of one item.
-- Render the array using `@for`.
-
-### Hard Challenges
-
-- Build a dynamic contact form with multiple phone numbers and emails.
-- Create a nested form array with groups of objects.
-- Add per-item validation messages.
-- Refactor a static form into a dynamic one.
-- Build a tag editor with add/remove actions.
-
-### Reflection Questions
-
-- Why are form arrays useful?
-- When should you use a form array instead of a form group?
-- How do add and remove actions change the form structure?
-- Why is validation still important in dynamic lists?
-- What real app data might benefit from a dynamic form?
-
-### Day Deliverable
-
-Create one dynamic form that includes:
-
-- A form array.
-- At least one add action.
-- At least one remove action.
-- A loop in the template.
-- Validation for each repeated item.
-
-### Suggested Practice Flow
-
-1. Choose a repeating field type.
-2. Create a form array.
-3. Add one control to start.
-4. Add and remove controls from the UI.
-5. Test validation and submit behavior.
-6. Complete the easy, medium, and hard challenges.
-
-### Note for Day 25
-
-Next day will cover file upload and media input handling, which often works alongside dynamic and validated forms.
+Next day covers **Combination Operators: `combineLatest`, `forkJoin`, `zip`**, which are used when you need to work with multiple streams together.
