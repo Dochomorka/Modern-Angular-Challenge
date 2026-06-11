@@ -1,241 +1,172 @@
-## Day 25 — File Uploads and Media Inputs
+# Day 25 — Combination Operators: `combineLatest`, `forkJoin`, `zip`
 
-Day 25 is about handling files in Angular forms, such as profile images, documents, attachments, and media. The main idea is to let users select files, preview them when needed, and prepare them for upload to a server.
+Day 25 is about combining multiple observables into one result. RxJS describes combination operators as a way to join information from multiple observables, and the main difference between these three is how they handle timing, order, and completion [web:256][web:252][web:237].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand how file inputs work.
-- Read selected files from an input element.
-- Store file data in component state.
-- Show a basic file preview.
-- Prepare files for upload.
-- Validate file type or size at a basic level.
+- Combine multiple streams into one.
+- Understand when each stream emits.
+- Use `combineLatest` for live combined updates.
+- Use `forkJoin` for one-time completion results.
+- Use `zip` for paired, ordered emissions.
+- Choose the right combination operator for a task.
 
-### Why This Matters
+## Why This Matters
 
-Many real apps need file handling: avatars, resumes, receipts, screenshots, and product images. File inputs are slightly different from text inputs because you usually work with the selected file object instead of a simple string.
+Angular apps often need data from more than one source at the same time. You might combine form inputs, multiple API calls, or several UI streams into one response [web:256][web:252].
 
-This matters because:
-- Users can attach media easily.
-- Forms become more practical.
-- You can preview uploads before sending them.
-- You can validate file size and type early.
+These operators help you:
+- Coordinate multiple async values.
+- Avoid manual synchronization logic.
+- Keep code declarative.
+- Match behavior to the business requirement.
 
-### Basic File Input
+## `combineLatest`
 
-A file input lets the user choose one or more files from their device.
+`combineLatest` waits until each input has emitted at least once, then emits a new combined value whenever any input changes, using the latest value from each stream [web:252][web:255].
 
-```html
-<input type="file" (change)="onFileSelected($event)" />
+Use it when:
+- You want live updates.
+- Any change should refresh the result.
+- You are combining form controls or reactive UI state.
+
+```ts
+import { combineLatest, of } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+combineLatest([of('A'), of('B')])
+  .pipe(map(([a, b]) => `${a}-${b}`))
+  .subscribe(console.log);
 ```
 
-In Angular, you usually capture the change event and read the selected file from `event.target.files`.
+## `forkJoin`
 
-### Example: Single File Selection
+`forkJoin` waits for all input observables to complete, then emits the last value from each one. It will not emit if one observable never completes [web:252][web:255][web:259].
+
+Use it when:
+- You need final results only.
+- You are combining one-time HTTP requests.
+- Completion matters more than intermediate values.
+
+```ts
+import { forkJoin, of } from 'rxjs';
+
+forkJoin([of('user'), of('settings')])
+  .subscribe(console.log);
+```
+
+## `zip`
+
+`zip` combines values by index, pairing the first with the first, the second with the second, and so on. It waits until each source has the matching value for the next pair [web:252][web:260].
+
+Use it when:
+- You want strict pairing.
+- Value order matters.
+- You need synchronized emissions.
+
+```ts
+import { zip, of } from 'rxjs';
+
+zip([of(1, 2), of('a', 'b')])
+  .subscribe(console.log);
+```
+
+## Practical Example
 
 ```ts
 import { Component } from '@angular/core';
+import { combineLatest, forkJoin, zip, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-file-upload',
+  selector: 'app-combine-demo',
   standalone: true,
-  template: `
-    <input type="file" (change)="onFileSelected($event)" />
-
-    @if (fileName) {
-      <p>Selected file: {{ fileName }}</p>
-    }
-  `
+  template: `<p>Check the console</p>`
 })
-export class FileUploadComponent {
-  fileName = '';
+export class CombineDemoComponent {
+  constructor() {
+    combineLatest([of('John'), of('Doe')])
+      .pipe(map(([first, last]) => `${first} ${last}`))
+      .subscribe(console.log);
 
-  onFileSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.;
+    forkJoin([of('profile'), of('preferences')])
+      .subscribe(console.log);
 
-    if (file) {
-      this.fileName = file.name;
-    }
+    zip([of(1, 2), of('A', 'B')])
+      .subscribe(console.log);
   }
 }
 ```
 
-### File Preview
+## Choosing the Right Operator
 
-For image uploads, you can create a simple preview using `FileReader`.
+| Operator | When it emits | Best use |
+|---|---|---|
+| `combineLatest` | After each source has emitted once, then on any new emission | Live UI state, forms, reactive dashboards |
+| `forkJoin` | After all sources complete | HTTP calls, final combined results |
+| `zip` | When each source has the next matching value | Paired records, synchronized sequences |
 
-```ts
-import { Component } from '@angular/core';
+## Best Practices
 
-@Component({
-  selector: 'app-image-upload',
-  standalone: true,
-  template: `
-    <input type="file" accept="image/*" (change)="onImageSelected($event)" />
+- Use `combineLatest` for continuously updating views.
+- Use `forkJoin` for one-shot completion-based work.
+- Use `zip` when matching by position matters.
+- Remember that `forkJoin` needs completion.
+- Prefer the operator whose timing behavior matches your task.
 
-    @if (previewUrl) {
-      <img [src]="previewUrl" alt="Preview" width="200" />
-    }
-  `
-})
-export class ImageUploadComponent {
-  previewUrl = '';
+## Easy Challenges
 
-  onImageSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.;
+- Combine two strings with `combineLatest`.
+- Join two HTTP-like observables with `forkJoin`.
+- Pair two number streams with `zip`.
+- Observe when each operator emits.
+- Compare live vs final-only behavior.
 
-    if (!file) return;
+## Medium Challenges
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.previewUrl = String(reader.result);
-    };
-    reader.readAsDataURL(file);
-  }
-}
-```
+- Build a full name stream from first and last name controls.
+- Combine two API requests and show the final result.
+- Pair numbers and letters in order with `zip`.
+- Refactor manual merging into one operator.
+- Use `combineLatest` with three observables.
 
-### Validation Basics
+## Hard Challenges
 
-You can check:
-- File type.
-- File size.
-- Number of files selected.
+- Create a form preview with `combineLatest`.
+- Simulate a dashboard with several live streams.
+- Build a completion-based data load with `forkJoin`.
+- Compare `zip` and `combineLatest` side by side.
+- Combine multiple streams and explain why each operator fits.
 
-For example, you might reject files larger than a certain size or allow only images.
+## Reflection Questions
 
-### Practical Example
+- Why does `combineLatest` wait for an initial value from each stream?
+- Why does `forkJoin` need completion?
+- How is `zip` different from `combineLatest`?
+- Which operator fits live UI updates best?
+- Which one is safest for one-time API calls?
 
-```ts
-import { Component } from '@angular/core';
+## Day Deliverable
 
-@Component({
-  selector: 'app-profile-photo',
-  standalone: true,
-  template: `
-    <form>
-      <label>
-        Upload profile photo
-        <input type="file" accept="image/*" (change)="onFileSelected($event)" />
-      </label>
+Create one example that includes:
 
-      @if (error) {
-        <p>{{ error }}</p>
-      }
+- One `combineLatest` flow.
+- One `forkJoin` flow.
+- One `zip` flow.
+- A clear explanation of when each is used.
+- One Angular-style scenario.
 
-      @if (previewUrl) {
-        <img [src]="previewUrl" alt="Profile preview" width="180" />
-      }
+## Suggested Practice Flow
 
-      @if (fileName) {
-        <p>{{ fileName }}</p>
-      }
-    </form>
-  `
-})
-export class ProfilePhotoComponent {
-  fileName = '';
-  previewUrl = '';
-  error = '';
-
-  onFileSelected(event: Event) {
-    this.error = '';
-    this.previewUrl = '';
-
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.;
-
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      this.error = 'Please select an image file.';
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      this.error = 'File must be smaller than 2 MB.';
-      return;
-    }
-
-    this.fileName = file.name;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.previewUrl = String(reader.result);
-    };
-    reader.readAsDataURL(file);
-  }
-}
-```
-
-### Upload Preparation
-
-When you're ready to send a file to the server, you usually build a `FormData` object and append the file to it. That object can then be sent with an HTTP request later.
-
-### Best Practices
-
-- Use `accept` to guide file selection.
-- Validate file type and size early.
-- Show a preview for images when useful.
-- Reset errors when a new file is selected.
-- Keep file handling logic in the component or a service.
-- Be careful with memory if you generate object URLs.
-
-### Easy Challenges
-
-- Add a file input to a component.
-- Display the selected file name.
-- Restrict the file input to images.
-- Show an error for invalid file types.
-- Add a preview for one image.
-
-### Medium Challenges
-
-- Build an avatar upload component.
-- Validate file size before previewing.
-- Support both image preview and file name display.
-- Allow replacing a selected file.
-- Create a simple attachment picker.
-
-### Hard Challenges
-
-- Build a profile photo upload flow with validation and preview.
-- Allow multiple file selection.
-- Show a list of selected files.
-- Create a form with text fields plus file input.
-- Prepare a `FormData` payload for future API upload.
-
-### Reflection Questions
-
-- Why is file input handling different from text input handling?
-- When should you validate file type and size?
-- Why is previewing an image useful?
-- What is the role of `FormData`?
-- When would you move file handling into a service?
-
-### Day Deliverable
-
-Create one file upload component that includes:
-
-- A file input.
-- File type or size validation.
-- A file name display.
-- Optional image preview.
-- Clear error handling.
-
-### Suggested Practice Flow
-
-1. Add a file input.
-2. Read the selected file.
-3. Display the file name.
-4. Add validation.
-5. Add preview support for images.
+1. Start with two simple observables.
+2. Test `combineLatest`.
+3. Test `forkJoin`.
+4. Test `zip`.
+5. Compare timing and output.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 26
+## Note for Day 26
 
-Next day will cover submitting forms and sending data to APIs, which is the natural next step after handling file uploads and inputs.
+Next day covers **Error Handling: `catchError`, `retry`, `throwError`**, which is the next step in making RxJS streams resilient.
