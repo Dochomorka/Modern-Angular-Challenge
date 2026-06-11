@@ -1,206 +1,179 @@
-## Day 32 — State Management Basics
+# Day 32 — Custom Validators
 
-Day 32 is about understanding how to manage app state in a clean, predictable way. The goal is to decide what state should stay inside a component, what should move to a service, and when a more structured approach is needed.
+Day 32 is about creating your own validation rules in Angular. Angular’s forms validation guide and custom validator references show that validators are functions that return `null` when valid and an error object when invalid [web:305][web:322][web:336].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what app state is.
-- Distinguish local state from shared state.
-- Know when a service is enough for state.
-- Recognize when state becomes too complex for components.
-- Keep state updates predictable.
-- Build a simple shared state flow.
+- Create a custom validator function.
+- Attach a validator to a `FormControl`.
+- Attach a validator to a `FormGroup`.
+- Return meaningful validation errors.
+- Show custom validation messages in the template.
+- Reuse validators across forms.
 
-### Why This Matters
+## Why This Matters
 
-As Angular apps grow, state becomes one of the most important design choices. If state is scattered everywhere, debugging becomes harder and components become tightly coupled.
+Built-in validators cover common cases, but many apps need rules specific to the business domain. Custom validators let you encode those rules directly into your form logic [web:322][web:335][web:337].
 
-Good state management helps you:
-- Keep UI predictable.
-- Share data between components.
-- Reduce duplication.
-- Make changes easier to trace.
+This matters because:
+- You can validate app-specific rules.
+- You reduce duplicated logic.
+- You keep invalid data out earlier.
+- You can validate single fields or whole forms.
 
-### Types of State
+## What A Validator Does
 
-There are a few common kinds of state:
+A validator is a function that checks a control’s value and returns either `null` or an error object. Angular’s documentation and validator references describe validators this way for both built-in and custom rules [web:336][web:322][web:334].
 
-- **Local state**: only one component needs it.
-- **Shared state**: multiple components need it.
-- **Server state**: comes from an API.
-- **UI state**: loading flags, open menus, selected tabs, and similar behavior.
+## Field-Level Validator
 
-### Local vs Shared
-
-Use local state when the data only matters inside one component.
-
-Use shared state when:
-- More than one component needs the same data.
-- Different parts of the UI must stay in sync.
-- A component tree becomes hard to manage with inputs and outputs alone.
-
-### Service-Based State
-
-A service is often the simplest way to share state across components.
+Use a field-level validator when the rule applies to one input only.
 
 ```ts
-import { Injectable, signal } from '@angular/core';
+import { AbstractControl, ValidationErrors } from '@angular/forms';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class CounterStateService {
-  count = signal(0);
-
-  increment() {
-    this.count.update(value => value + 1);
-  }
-
-  reset() {
-    this.count.set(0);
-  }
+export function noSpacesValidator(control: AbstractControl): ValidationErrors | null {
+  const value = control.value as string;
+  return value && value.includes(' ') ? { noSpaces: true } : null;
 }
 ```
 
-A component can use this service to read and update shared state.
+## Form-Level Validator
 
-### Example Usage
+Use a form-level validator when the rule depends on more than one field, such as a start date and end date comparison [web:332][web:337][web:322].
 
 ```ts
-import { Component, inject } from '@angular/core';
-import { CounterStateService } from './counter-state.service';
+import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+
+export function startBeforeEndValidator(): ValidatorFn {
+  return (group: AbstractControl): ValidationErrors | null => {
+    const start = group.get('startDate')?.value;
+    const end = group.get('endDate')?.value;
+
+    if (start && end && new Date(start) > new Date(end)) {
+      return { startAfterEnd: true };
+    }
+
+    return null;
+  };
+}
+```
+
+## Reactive Form Example
+
+```ts
+import { Component } from '@angular/core';
+import { ReactiveFormsModule, FormControl, FormGroup, Validators } from '@angular/forms';
+import { noSpacesValidator } from './no-spaces.validator';
 
 @Component({
-  selector: 'app-counter',
+  selector: 'app-custom-validator-demo',
   standalone: true,
-  template: `
-    <p>Count: {{ counter.count() }}</p>
-    <button (click)="counter.increment()">Increment</button>
-    <button (click)="counter.reset()">Reset</button>
-  `
+  imports: [ReactiveFormsModule],
+  templateUrl: './custom-validator-demo.component.html'
 })
-export class CounterComponent {
-  counter = inject(CounterStateService);
-}
-```
+export class CustomValidatorDemoComponent {
+  form = new FormGroup({
+    username: new FormControl('', [Validators.required, noSpacesValidator]),
+    email: new FormControl('', [Validators.required, Validators.email])
+  });
 
-### When a Service Is Enough
-
-A service works well when:
-- State is small.
-- State is shared by a few components.
-- You only need a simple source of truth.
-- The update rules are straightforward.
-
-This is often enough for small and medium Angular apps.
-
-### When You Need More Structure
-
-A more formal state approach may be needed when:
-- Many components share the same data.
-- Updates happen from several places.
-- You need derived values and side effects.
-- Debugging state changes becomes difficult.
-- The app has complex async flows.
-
-### Practical Example
-
-```ts
-import { Injectable, signal, computed } from '@angular/core';
-
-@Injectable({
-  providedIn: 'root'
-})
-export class TaskStateService {
-  tasks = signal([
-    { id: 1, title: 'Learn state basics', done: false },
-    { id: 2, title: 'Practice sharing data', done: true }
-  ]);
-
-  total = computed(() => this.tasks().length);
-  completed = computed(() => this.tasks().filter(task => task.done).length);
-
-  addTask(title: string) {
-    this.tasks.update(current => [
-      ...current,
-      { id: Date.now(), title, done: false }
-    ]);
-  }
-
-  toggleTask(id: number) {
-    this.tasks.update(current =>
-      current.map(task =>
-        task.id === id ? { ...task, done: !task.done } : task
-      )
-    );
+  submit() {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    console.log(this.form.value);
   }
 }
 ```
 
-This keeps state, updates, and derived values in one place.
+## Template Example
 
-### Best Practices
+```html
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <input formControlName="username" placeholder="Username" />
+  <p *ngIf="form.get('username')?.hasError('required')">Username is required.</p>
+  <p *ngIf="form.get('username')?.hasError('noSpaces')">Username cannot contain spaces.</p>
 
-- Keep state close to where it is used.
-- Share state only when needed.
-- Use signals or services for simple shared state.
-- Keep update methods explicit.
-- Derive computed values instead of storing them separately.
-- Avoid mutating state directly.
+  <input formControlName="email" placeholder="Email" />
+  <p *ngIf="form.get('email')?.hasError('required')">Email is required.</p>
+  <p *ngIf="form.get('email')?.hasError('email')">Enter a valid email.</p>
 
-### Easy Challenges
+  <button type="submit">Save</button>
+</form>
+```
 
-- Create a component with local state.
-- Move one piece of shared state into a service.
-- Add one update method to a state service.
-- Read shared state in two components.
-- Add a reset action.
+## Good Validator Design
 
-### Medium Challenges
+A good custom validator is:
+- Small.
+- Easy to read.
+- Reusable.
+- Focused on one rule.
+- Return-value based, not side-effect based [web:322][web:337][web:334].
 
-- Build a shared counter service.
-- Create a task list service with add and toggle methods.
-- Add computed values for totals and completed counts.
-- Use one service in two separate components.
-- Keep local and shared state separate.
+## Best Practices
 
-### Hard Challenges
+- Use a field validator for single-control rules.
+- Use a group validator for cross-field rules.
+- Return a clear error key like `noSpaces` or `startAfterEnd`.
+- Keep validators pure.
+- Reuse validators from shared files when possible.
 
-- Build a small shared task manager.
-- Add derived state for task progress.
-- Sync a list view and a summary view with one service.
-- Refactor input/output-based sync into shared state.
-- Organize a larger feature into local, shared, and server state.
+## Easy Challenges
 
-### Reflection Questions
+- Create a validator that rejects empty strings with spaces.
+- Add a custom validator to one input.
+- Show the custom error in the template.
+- Create a validator for a minimum numeric range.
+- Return a custom error key.
 
-- What makes state local or shared?
-- When is a service enough for state management?
-- Why should derived values be computed instead of stored?
-- What problems happen when state is scattered?
-- When does state become too complex for simple component logic?
+## Medium Challenges
 
-### Day Deliverable
+- Build a username validator.
+- Build a password strength validator.
+- Create a cross-field validator for two dates.
+- Reuse one validator in two forms.
+- Mark all controls as touched on invalid submit.
 
-Create one shared state service that includes:
+## Hard Challenges
 
-- A signal or observable state value.
-- At least one update method.
-- One computed or derived value.
-- Two components that use the shared state.
-- A clear separation between state and display.
+- Build a reusable validator library file.
+- Combine built-in and custom validators.
+- Add a group-level validator with a custom error message.
+- Support multiple custom error states.
+- Refactor validation logic into clean helper functions.
 
-### Suggested Practice Flow
+## Reflection Questions
 
-1. Identify a small piece of state.
-2. Decide whether it should stay local or be shared.
-3. Move shared state into a service.
-4. Add explicit update methods.
-5. Read the same state from two components.
+- When should you use a field validator?
+- When should you use a group validator?
+- Why should validators return `null` when valid?
+- What makes an error key useful?
+- How can you keep validators reusable?
+
+## Day Deliverable
+
+Create one form that includes:
+
+- One custom field validator.
+- One custom group validator.
+- At least one built-in validator.
+- A custom error message.
+- One reusable validator function.
+
+## Suggested Practice Flow
+
+1. Pick one rule that Angular does not provide.
+2. Write a validator function.
+3. Attach it to a control or group.
+4. Add error messages.
+5. Test invalid and valid input.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 33
+## Note for Day 33
 
-Next day will cover local state patterns and when to keep state inside a component instead of moving it elsewhere.
+Next day covers **State Management Patterns**, which builds on forms and shared data handling.
