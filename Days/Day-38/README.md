@@ -1,199 +1,142 @@
-## Day 38 — App Structure and Architecture Patterns
+# Day 38 — Accessibility Basics
 
-Day 38 is about organizing an Angular app so it stays easy to grow, debug, and maintain. The main idea is to keep features separated, responsibilities clear, and shared logic in the right place.
+Day 38 is about making Angular apps usable for everyone, including keyboard and screen-reader users. Angular’s accessibility guidance, W3C labeling guidance, and Google’s Angular accessibility material all point to the same basics: use semantic HTML, label controls properly, and support keyboard interaction [web:391][web:393][web:394].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Organize an Angular app by feature.
-- Separate components, services, and models cleanly.
-- Understand where shared code should live.
-- Keep a predictable folder structure.
-- Avoid putting too much logic in one file.
-- Make the app easier for other developers to understand.
+- Use semantic HTML correctly.
+- Associate labels with form controls.
+- Provide accessible names for interactive elements.
+- Support keyboard use.
+- Add ARIA only when needed.
+- Spot common accessibility mistakes.
 
-### Why This Matters
+## Why This Matters
 
-Small apps can survive with loose structure, but larger apps become difficult to manage if everything is mixed together. A good architecture makes it easier to find code, reuse logic, and scale without confusion.
+Accessibility is not only for compliance; it improves usability for more people. The W3C emphasizes proper labeling of controls, and Angular’s accessibility guidance highlights using the framework’s built-in support to build more inclusive apps [web:393][web:391][web:394].
 
 This matters because:
-- Features stay isolated.
-- Shared code is easier to reuse.
-- New work is easier to add.
-- Refactoring becomes less risky.
+- Screen readers need clear labels.
+- Keyboard users need focusable controls.
+- Semantic HTML improves navigation.
+- Accessible apps are easier for everyone to use.
 
-### Common Structure Ideas
+## Semantic HTML
 
-A clean Angular app often groups code by feature instead of by file type alone. For example, one feature folder may contain its component, service, routes, and related models.
+Use the right HTML element for the job. Buttons should be `<button>`, links should be `<a>`, and form sections should use proper form elements so assistive tech can understand the page structure [web:389][web:391].
 
-A simple structure could look like this:
+Good examples:
+- Use `<button>` for actions.
+- Use `<a>` for navigation.
+- Use headings in order.
+- Use landmarks like `<main>`, `<nav>`, and `<header>`.
 
-```txt
-src/app/
-  features/
-    tasks/
-      tasks.component.ts
-      tasks.service.ts
-      task.model.ts
-    auth/
-      login.component.ts
-      auth.service.ts
-  shared/
-    components/
-    pipes/
-    directives/
-  core/
-    interceptors/
-    guards/
-    services/
+## Labels And Forms
+
+W3C guidance says labels should be associated with form controls either explicitly with `for` and `id`, or implicitly by wrapping the control [web:393]. Angular accessibility articles also emphasize that form inputs need labels to be understandable to screen readers [web:389][web:396].
+
+```html
+<label for="email">Email</label>
+<input id="email" type="email" />
 ```
 
-### Feature-Based Thinking
+## Keyboard Support
 
-Feature-based organization means each domain owns its own code. For example:
-- `tasks` feature keeps task screens and task logic together.
-- `auth` feature keeps authentication code together.
-- `shared` holds reusable UI pieces.
-- `core` holds app-wide infrastructure.
+Interactive elements must work with the keyboard, not just the mouse. Angular accessibility resources recommend making controls focusable and handling keyboard interactions for custom widgets when native HTML is not enough [web:389][web:392][web:394].
 
-### Example Pattern
+Rules of thumb:
+- Tab should reach interactive controls.
+- Enter and Space should activate controls when appropriate.
+- Focus should be visible.
+- Do not trap the keyboard unexpectedly.
 
-```ts
-// task.model.ts
-export interface Task {
-  id: number;
-  title: string;
-  done: boolean;
-}
+## ARIA Use
+
+ARIA can help, but it should not replace semantic HTML. Angular accessibility guidance and community resources recommend using ARIA only when native elements cannot express the required behavior [web:391][web:389][web:392].
+
+Good uses include:
+- `aria-label` for icon-only buttons.
+- `aria-labelledby` for complex labeling.
+- `role="dialog"` for custom modals.
+- `aria-live` for status messages.
+
+## Practical Example
+
+```html
+<form>
+  <label for="name">Name</label>
+  <input id="name" type="text" />
+
+  <button type="submit">Save</button>
+</form>
+
+<button aria-label="Close dialog">×</button>
 ```
 
-```ts
-// tasks.service.ts
-import { Injectable, signal } from '@angular/core';
-import { Task } from './task.model';
+This example uses proper labeling and a clear accessible name for the close button, which follows standard accessibility guidance [web:393][web:391][web:389].
 
-@Injectable({
-  providedIn: 'root'
-})
-export class TasksService {
-  tasks = signal<Task[]>([]);
-}
-```
+## Best Practices
 
-```ts
-// tasks.component.ts
-import { Component, inject } from '@angular/core';
-import { TasksService } from './tasks.service';
+- Prefer semantic HTML first.
+- Label every form control.
+- Make custom interactive elements keyboard accessible.
+- Use ARIA as a supplement, not a replacement.
+- Keep focus states visible.
+- Test with keyboard and screen readers.
 
-@Component({
-  selector: 'app-tasks',
-  standalone: true,
-  template: `
-    <h2>Tasks</h2>
-    <p>Total: {{ service.tasks().length }}</p>
-  `
-})
-export class TasksComponent {
-  service = inject(TasksService);
-}
-```
+## Easy Challenges
 
-This keeps the model, state, and UI in clear places.
+- Add labels to two inputs.
+- Replace a clickable div with a button.
+- Add accessible text to an icon button.
+- Test tab order in one screen.
+- Check heading order on one page.
 
-### Core vs Shared
+## Medium Challenges
 
-A simple rule:
-- **Core**: app-wide services and infrastructure.
-- **Shared**: reusable UI pieces and helpers.
-- **Feature**: code specific to one business area.
+- Audit one form for missing labels.
+- Add `aria-label` to an icon-only action.
+- Ensure a modal can be closed by keyboard.
+- Improve one navigation landmark.
+- Fix one focus visibility issue.
 
-Avoid placing every utility in one giant folder. Put code where its purpose is most obvious.
+## Hard Challenges
 
-### Practical Example
+- Make a custom widget keyboard accessible.
+- Add `aria-live` to a status message.
+- Refactor a form for better labeling.
+- Review an entire page with a keyboard only.
+- Use a screen reader to catch one usability problem.
 
-```ts
-// auth.service.ts
-import { Injectable, signal } from '@angular/core';
+## Reflection Questions
 
-@Injectable({
-  providedIn: 'root'
-})
-export class AuthService {
-  user = signal<{ name: string } | null>(null);
+- Why is semantic HTML the first choice?
+- When should you add ARIA?
+- What makes a control accessible to keyboard users?
+- Why do labels matter so much?
+- How can accessibility improve usability for everyone?
 
-  login(name: string) {
-    this.user.set({ name });
-  }
+## Day Deliverable
 
-  logout() {
-    this.user.set(null);
-  }
-}
-```
+Create one accessible screen that includes:
 
-A login component can use this service, while the header can read the same user state. That keeps the authentication concern in one place.
+- Proper labels.
+- Semantic elements.
+- Keyboard-friendly interactions.
+- One ARIA attribute used appropriately.
+- One accessibility improvement you can explain.
 
-### Best Practices
+## Suggested Practice Flow
 
-- Organize by feature when possible.
-- Keep models close to the feature that uses them.
-- Put reusable UI in shared folders.
-- Keep app-wide infrastructure in core.
-- Avoid circular dependencies.
-- Keep each folder responsible for one clear purpose.
-
-### Easy Challenges
-
-- Create one feature folder.
-- Move a component and service into the same feature.
-- Add a model file next to the feature.
-- Create a shared component.
-- Separate app-wide code from feature code.
-
-### Medium Challenges
-
-- Reorganize a small app into feature folders.
-- Add a `shared` folder for reusable UI.
-- Move a global service into `core`.
-- Create a `tasks` feature with its own files.
-- Keep routes and logic together inside a feature.
-
-### Hard Challenges
-
-- Refactor a mixed folder structure into a feature-based one.
-- Split shared and core responsibilities clearly.
-- Organize a multi-feature app with clear boundaries.
-- Create a structure that scales to several screens.
-- Reduce cross-feature imports by improving layout.
-
-### Reflection Questions
-
-- Why is feature-based structure helpful?
-- What belongs in shared versus core?
-- Why should models live near the features that use them?
-- How does structure affect maintainability?
-- What happens when everything is placed in one folder?
-
-### Day Deliverable
-
-Create or refactor one Angular feature so it includes:
-
-- A component.
-- A service.
-- A model or type.
-- A clear folder location.
-- A structure that would make sense to another developer.
-
-### Suggested Practice Flow
-
-1. Pick one feature area.
-2. Group its files together.
-3. Separate shared and app-wide code.
-4. Move models near the feature.
-5. Check whether the layout is easy to follow.
+1. Check semantic HTML first.
+2. Label every control.
+3. Test keyboard navigation.
+4. Add ARIA only where needed.
+5. Review focus and visibility.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 39
+## Note for Day 39
 
-Next day will cover routing structure and feature navigation patterns, which will help you connect a clean architecture to real app screens.
+Next day covers **Build and Deployment**, which is the next step in preparing the app for production.
