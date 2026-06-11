@@ -1,176 +1,159 @@
-## Day 28 — Interceptors
+# Day 28 — Schedulers and Performance
 
-Day 28 is about interceptors, which let you apply shared behavior to every HTTP request and response in one place. In Angular, interceptors are a standard way to modify requests, attach headers, handle auth tokens, or centralize error handling before the request reaches the server or before the response reaches your app.
+Day 28 is about how RxJS controls when work runs and how notifications are delivered. A scheduler manages subscription timing and notification delivery, and RxJS documents schedulers as tools for controlling execution context and time [web:287][web:281][web:282].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what an interceptor does.
-- Attach headers to outgoing requests.
-- Add an auth token to requests.
-- Handle errors in one place.
-- Log or inspect requests globally.
-- Keep HTTP behavior consistent across the app.
+- Explain what a scheduler does.
+- Understand why timing matters in RxJS.
+- Recognize `queueScheduler`, `asapScheduler`, `asyncScheduler`, and `animationFrameScheduler`.
+- Use schedulers to improve responsiveness.
+- Distinguish synchronous from scheduled execution.
+- Know when scheduler choice affects performance.
 
-### Why This Matters
+## Why This Matters
 
-As your app grows, many requests need the same setup. You might need to send a token on every request, add a content type header, or handle expired sessions. Interceptors prevent you from repeating that code in every service.
+Schedulers help you control performance and execution order in Angular and RxJS apps. They matter when you want to defer work, smooth rendering, or avoid blocking the UI thread [web:282][web:285][web:287].
 
-They help you:
-- Reduce duplication.
-- Keep services smaller.
-- Make auth behavior consistent.
-- Centralize cross-cutting HTTP concerns.
+This matters because:
+- Large synchronous work can hurt responsiveness.
+- Some updates should happen before paint.
+- Animation work should align with browser frames.
+- Timing differences can change app behavior.
 
-### Basic Idea
+## What A Scheduler Does
 
-An interceptor sits between your app and the server. It can:
+A scheduler controls when subscription starts and when notifications are delivered. In practice, it decides whether work happens immediately, later in the task queue, in a microtask, or before the next repaint [web:287][web:282][web:286].
 
-- Read the outgoing request.
-- Clone and modify it.
-- Pass it along.
-- Inspect the response or error.
+## Main Schedulers
 
-### Example: Adding a Header
+| Scheduler | Timing behavior | Common use |
+|---|---|---|
+| `queueScheduler` | Runs in a queued synchronous order | Recursive or ordered work |
+| `asapScheduler` | Runs after current sync code, before macrotasks | High-priority deferred work |
+| `asyncScheduler` | Uses timed async execution | Delayed tasks, timers, throttling |
+| `animationFrameScheduler` | Runs before browser repaint | Smooth animations and visual updates |
 
-```ts
-import { HttpInterceptorFn } from '@angular/common/http';
+These descriptions are consistent with RxJS scheduler references and performance guides [web:282][web:287][web:286].
 
-export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = 'demo-token';
+## `queueScheduler`
 
-  const authReq = req.clone({
-    setHeaders: {
-      Authorization: `Bearer ${token}`
-    }
-  });
-
-  return next(authReq);
-};
-```
-
-This example adds an authorization header to every request that passes through it.
-
-### Registering the Interceptor
-
-Interceptors are registered when you configure HTTP support for the app. Once registered, they apply automatically to matching requests.
-
-### Error Handling Idea
-
-You can also use an interceptor to watch for request failures and handle common cases, like showing a message or redirecting after unauthorized access.
+`queueScheduler` queues work and executes it synchronously in order. It is useful when you want predictable sequencing without jumping to a later event loop turn [web:282][web:286].
 
 ```ts
-import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
-import { catchError, throwError } from 'rxjs';
+import { of, queueScheduler } from 'rxjs';
 
-export const errorInterceptor: HttpInterceptorFn = (req, next) => {
-  return next(req).pipe(
-    catchError((error: HttpErrorResponse) => {
-      console.error('HTTP error:', error.message);
-      return throwError(() => error);
-    })
-  );
-};
+of(1, 2, 3, queueScheduler).subscribe(console.log);
 ```
 
-### Logging Requests
+## `asapScheduler`
 
-Interceptors are also useful for debugging.
+`asapScheduler` schedules work as soon as possible after the current synchronous work finishes. It is often described as microtask-like behavior [web:282][web:286].
+
+Use it when:
+- You want to defer slightly.
+- The update should happen very soon.
+- You want to avoid blocking the current call stack.
+
+## `asyncScheduler`
+
+`asyncScheduler` schedules work asynchronously, similar to timer-based execution. It is useful for delayed work, debouncing patterns, and tasks that do not need to happen immediately [web:282][web:285].
+
+Use it when:
+- You need a real async delay.
+- You are working with timers.
+- You want to move work off the current synchronous flow.
+
+## `animationFrameScheduler`
+
+`animationFrameScheduler` aligns work with the browser’s repaint cycle. That makes it a strong choice for UI updates and smooth animations [web:282][web:285][web:286].
+
+Use it when:
+- You are animating elements.
+- You want frame-aligned rendering.
+- You need smoother visual updates.
+
+## Practical Example
 
 ```ts
-import { HttpInterceptorFn } from '@angular/common/http';
-import { tap } from 'rxjs';
+import { Component } from '@angular/core';
+import { of, asyncScheduler, animationFrameScheduler } from 'rxjs';
 
-export const logInterceptor: HttpInterceptorFn = (req, next) => {
-  console.log('Request:', req.method, req.url);
-  return next(req).pipe(
-    tap({
-      next: () => console.log('Response received'),
-      error: () => console.log('Request failed')
-    })
-  );
-};
+@Component({
+  selector: 'app-scheduler-demo',
+  standalone: true,
+  template: `<p>Check the console</p>`
+})
+export class SchedulerDemoComponent {
+  constructor() {
+    of('sync').subscribe(console.log);
+    of('async', asyncScheduler).subscribe(console.log);
+    of('frame', animationFrameScheduler).subscribe(console.log);
+  }
+}
 ```
 
-### Practical Example
+## Performance Tips
 
-```ts
-import { HttpInterceptorFn } from '@angular/common/http';
+- Use scheduling to avoid blocking the UI.
+- Prefer `animationFrameScheduler` for visual updates.
+- Use `asyncScheduler` for deferred background work.
+- Keep synchronous chains short when data volume is large.
+- Choose the scheduler that matches the timing you actually need.
 
-export const simpleInterceptor: HttpInterceptorFn = (req, next) => {
-  const modified = req.clone({
-    setHeaders: {
-      'X-App-Source': 'AngularApp'
-    }
-  });
+## Easy Challenges
 
-  return next(modified);
-};
-```
+- Compare synchronous and scheduled emissions.
+- Use `asyncScheduler` in a small example.
+- Test the order of `queueScheduler` and `asyncScheduler`.
+- Emit one value on `animationFrameScheduler`.
+- Observe how timing changes output.
 
-This kind of shared request behavior is ideal for app-wide setup.
+## Medium Challenges
 
-### Best Practices
+- Create a delayed stream with `asyncScheduler`.
+- Build a frame-based visual update example.
+- Compare `asapScheduler` and `asyncScheduler`.
+- Move heavy work out of the immediate call stack.
+- Explore how scheduler choice changes operator behavior.
 
-- Use interceptors for shared HTTP behavior.
-- Keep them small and focused.
-- Clone requests before modifying them.
-- Avoid putting feature-specific logic in interceptors.
-- Use them for auth, logging, headers, and global error handling.
-- Do not overload a single interceptor with too many responsibilities.
+## Hard Challenges
 
-### Easy Challenges
+- Build a UI update example with `animationFrameScheduler`.
+- Compare multiple schedulers in one demo.
+- Refactor a synchronous stream to reduce blocking.
+- Measure how scheduling affects perceived responsiveness.
+- Design a stream that balances timing and performance.
 
-- Add one header to every request.
-- Create a logging interceptor.
-- Print each request URL in the console.
-- Add a token header to outgoing requests.
-- Use one interceptor in the app setup.
+## Reflection Questions
 
-### Medium Challenges
+- What does a scheduler control?
+- Why can synchronous execution hurt performance?
+- When is `animationFrameScheduler` the best fit?
+- How is `asyncScheduler` different from `queueScheduler`?
+- Why does scheduler choice matter in Angular UIs?
 
-- Create an auth interceptor.
-- Add a custom app header globally.
-- Handle unauthorized errors in one place.
-- Build a logging and error interceptor pair.
-- Apply one interceptor only to specific request behavior.
+## Day Deliverable
 
-### Hard Challenges
+Create one example that includes:
 
-- Combine auth, logging, and error handling across the app.
-- Add a refresh-token flow idea to your interceptor design.
-- Refactor repeated header logic out of services.
-- Centralize request tracing for debugging.
-- Build an interceptor strategy for protected API routes.
+- One synchronous emission.
+- One scheduled emission.
+- One animation-aligned emission.
+- A note on performance impact.
+- One Angular-style use case.
 
-### Reflection Questions
+## Suggested Practice Flow
 
-- Why are interceptors useful in Angular?
-- What should be handled in an interceptor instead of a service?
-- Why must requests be cloned before modification?
-- What kinds of cross-cutting concerns belong here?
-- How do interceptors reduce repetitive code?
-
-### Day Deliverable
-
-Create one interceptor that:
-
-- Modifies outgoing requests.
-- Adds a shared header or token.
-- Logs or handles an error.
-- Applies globally to HTTP calls.
-- Keeps service code cleaner.
-
-### Suggested Practice Flow
-
-1. Decide what shared behavior you want.
-2. Write a small interceptor.
-3. Register it in the app.
-4. Test it with one API request.
-5. Add logging or error handling if needed.
+1. Start with a synchronous observable.
+2. Add `queueScheduler`.
+3. Add `asyncScheduler`.
+4. Add `animationFrameScheduler`.
+5. Compare timing and behavior.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 29
+## Note for Day 29
 
-Next day will cover RxJS fundamentals, which will help you understand the observable streams used by HTTP requests, forms, and many Angular patterns.
+Next day covers **Custom Operators**, which is the next step in packaging reusable RxJS behavior.
