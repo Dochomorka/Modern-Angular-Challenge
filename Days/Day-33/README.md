@@ -1,211 +1,154 @@
-## Day 33 — Local State Patterns
+# Day 33 — State Management Patterns
 
-Day 33 is about keeping state inside a component when that state does not need to be shared anywhere else. The main idea is to manage small, UI-focused data locally so your app stays simple and easy to follow.
+Day 33 is about organizing shared and local state in Angular so your app stays predictable as it grows. Angular state guidance and RxJS references show that state can live in components, services, or dedicated stores, and should be exposed in a way that keeps updates controlled and readable [web:340][web:347][web:341].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand when state should stay local.
-- Keep UI state inside a component.
-- Use local state for simple interactions.
-- Separate component state from shared app state.
-- Avoid moving everything into services.
-- Make component logic easier to read.
+- Understand what application state is.
+- Distinguish local state from shared state.
+- Use a service as a simple state store.
+- Expose state reactively.
+- Update state through methods instead of direct mutation.
+- Choose a simple pattern before reaching for a heavier solution.
 
-### Why This Matters
+## Why This Matters
 
-Not every piece of state needs a service. If the state only matters to one component, keeping it local is usually the cleanest choice.
+State management is about how data is stored, updated, and shared across your app. In Angular, you often do not need a large global store at first; a service with reactive state is often enough for feature-level sharing [web:342][web:340][web:341].
 
 This matters because:
-- The code stays simpler.
-- The component is easier to understand.
-- You avoid unnecessary abstraction.
-- The UI logic stays close to the template.
+- Shared state can otherwise become scattered.
+- Components stay simpler when state lives elsewhere.
+- A single source of truth reduces bugs.
+- The right pattern depends on app size and complexity.
 
-### Good Uses for Local State
+## Common Patterns
 
-Local state is a good fit for:
-- Toggle buttons.
-- Open or closed menus.
-- Tabs.
-- Selected items in one component.
-- Form field values in simple forms.
-- Loading flags for a single component.
-- Temporary messages or alerts.
+A practical Angular state pattern is to keep local UI state in the component and move shared feature state into a service. State can be exposed with observables, subjects, or signals depending on the app style, and updates should happen through methods rather than direct writes [web:340][web:341][web:346].
 
-### Local State in Practice
+Common patterns include:
+- Local component state.
+- Shared service state.
+- Read-only exposed streams.
+- Update methods on a service.
+- Derived state from existing state.
 
-A local state component might look like this:
+## Service State Example
 
 ```ts
-import { Component } from '@angular/core';
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 
-@Component({
-  selector: 'app-toggle-panel',
-  standalone: true,
-  template: `
-    <button (click)="toggle()">Toggle Details</button>
+@Injectable({ providedIn: 'root' })
+export class CartStateService {
+  private readonly itemsSubject = new BehaviorSubject<string[]>([]);
+  readonly items$ = this.itemsSubject.asObservable();
 
-    @if (open) {
-      <p>These details are only needed in this component.</p>
-    }
-  `
-})
-export class TogglePanelComponent {
-  open = false;
+  addItem(item: string) {
+    this.itemsSubject.next([...this.itemsSubject.value, item]);
+  }
 
-  toggle() {
-    this.open = !this.open;
+  removeItem(item: string) {
+    this.itemsSubject.next(this.itemsSubject.value.filter(x => x !== item));
   }
 }
 ```
 
-The state is simple, self-contained, and does not need to be shared.
-
-### When to Keep State Local
-
-Keep state local when:
-- Only one component uses it.
-- The state is temporary.
-- The state does not affect other parts of the app.
-- The logic is small and easy to understand.
-- A service would add more complexity than value.
-
-### Common Local State Patterns
-
-#### Boolean toggle
-Useful for showing or hiding things.
-
-```ts
-isOpen = false;
-
-toggle() {
-  this.isOpen = !this.isOpen;
-}
-```
-
-#### Selected item
-Useful for tabs or lists.
-
-```ts
-selectedTab = 'home';
-```
-
-#### Inline form state
-Useful for very small forms or simple input tracking.
-
-```ts
-name = '';
-```
-
-#### Temporary UI message
-Useful for success messages or warnings.
-
-```ts
-message = '';
-```
-
-### Practical Example
+## Component Usage
 
 ```ts
 import { Component } from '@angular/core';
+import { AsyncPipe, NgFor } from '@angular/common';
+import { CartStateService } from './cart-state.service';
 
 @Component({
-  selector: 'app-faq-item',
+  selector: 'app-cart',
   standalone: true,
+  imports: [AsyncPipe, NgFor],
   template: `
-    <article>
-      <h3>{{ question }}</h3>
-      <button (click)="toggleAnswer()">
-        {{ showAnswer ? 'Hide' : 'Show' }} Answer
-      </button>
-
-      @if (showAnswer) {
-        <p>{{ answer }}</p>
-      }
-    </article>
+    <button (click)="add()">Add Item</button>
+    <ul>
+      <li *ngFor="let item of items$ | async">{{ item }}</li>
+    </ul>
   `
 })
-export class FaqItemComponent {
-  question = 'What is local state?';
-  answer = 'State that only matters inside one component.';
-  showAnswer = false;
+export class CartComponent {
+  items$ = this.cartState.items$;
 
-  toggleAnswer() {
-    this.showAnswer = !this.showAnswer;
+  constructor(private cartState: CartStateService) {}
+
+  add() {
+    this.cartState.addItem('Book');
   }
 }
 ```
 
-### Local State vs Shared State
+This pattern keeps state in one place while letting multiple components observe it reactively [web:341][web:340][web:347].
 
-| Type | Use It For | Best Place |
-|---|---|---|
-| Local state | One component only | Component class |
-| Shared state | Multiple components | Service or shared store |
-| Server state | API data | Service with HTTP/RxJS |
+## Best Practices
 
-### Best Practices
+- Keep local UI state inside the component.
+- Promote state into a service only when sharing is needed.
+- Expose state as read-only whenever possible.
+- Update state through methods, not direct mutation.
+- Separate UI state from server or cache state.
 
-- Keep local state small.
-- Put state near the UI that uses it.
-- Use clear names like `open`, `selected`, or `loading`.
-- Avoid turning simple UI state into a service.
-- Move state out only when more than one component needs it.
-- Keep update methods small and direct.
+## When To Use Heavier Tools
 
-### Easy Challenges
+More advanced libraries are useful when the app becomes large, the rules become more complex, or many features need coordinated state. For smaller apps and feature-level sharing, Angular guidance and community practice both emphasize keeping state simple first [web:340][web:342][web:346].
 
-- Create a toggle component.
-- Add local loading state to one component.
-- Build a selected-tab UI with local state.
-- Show or hide a message with a boolean.
-- Track a single input value inside a component.
+## Easy Challenges
 
-### Medium Challenges
+- Keep a loading flag in a component.
+- Share one value between two components using a service.
+- Use `BehaviorSubject` for current state.
+- Expose state through `asObservable()`.
+- Update state with one method.
 
-- Build a FAQ item with expandable answer state.
-- Create a local tab switcher.
-- Add a temporary success message after a button click.
-- Build a small counter that stays inside one component.
-- Create a local search field with display feedback.
+## Medium Challenges
 
-### Hard Challenges
+- Build a shopping cart state service.
+- Add remove and clear methods.
+- Show the state in two components.
+- Keep update logic inside the service.
+- Add a derived count of items.
 
-- Build a dashboard card with multiple local UI states.
-- Add a local modal open/close state.
-- Create a small form that keeps all its state local.
-- Refactor an overengineered service-based UI into local component state.
-- Separate local UI state from shared feature state in one screen.
+## Hard Challenges
 
-### Reflection Questions
+- Split UI state and data state.
+- Add a reset method for the state service.
+- Create a read-only state API.
+- Refactor duplicated state into one store-like service.
+- Compare a service-based pattern with a library-based approach.
 
-- When is local state the best choice?
-- What kinds of data should not be moved into a service?
-- Why is local state easier to understand?
-- How do you decide whether state should be shared?
-- What problems happen when state is abstracted too early?
+## Reflection Questions
 
-### Day Deliverable
+- What state should stay local?
+- When should state move into a service?
+- Why expose read-only streams?
+- Why avoid direct mutation?
+- When is a heavier state library worth it?
 
-Create one component that includes:
+## Day Deliverable
 
-- At least one local state value.
-- One user action that updates it.
-- One conditional UI branch based on that state.
-- A clear reason why the state stays local.
-- No unnecessary service for the state.
+Create one state pattern example that includes:
 
-### Suggested Practice Flow
+- One shared service.
+- One reactive state source.
+- One update method.
+- One consumer component.
+- One clear use case.
 
-1. Pick one UI-only behavior.
-2. Keep the state inside the component.
-3. Add a method to update it.
-4. Bind it in the template.
-5. Test the interaction.
+## Suggested Practice Flow
+
+1. Identify local vs shared state.
+2. Move shared state into a service.
+3. Expose it reactively.
+4. Add update methods.
+5. Consume it in a component.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 34
+## Note for Day 34
 
-Next day will cover shared state patterns, which help when multiple components need the same data.
+Next day covers **Component Testing**, which is the next step in verifying Angular behavior.
