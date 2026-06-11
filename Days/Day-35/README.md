@@ -1,180 +1,189 @@
-## Day 35 — Syncing UI State Across Views
+# Day 35 — Service and RxJS Testing
 
-Day 35 is about keeping the same UI state in sync across multiple components or screens. The goal is to make selections, filters, tabs, or other shared UI choices behave consistently no matter where they are changed.
+Day 35 is about testing Angular services and RxJS logic so you can verify data flow, side effects, and stream behavior. Angular’s testing guide and HTTP testing guide show that services are commonly tested with `TestBed`, while `HttpClientTestingController` can mock HTTP requests and let you assert expected calls [web:359][web:351][web:366].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what synced UI state is.
-- Keep selected UI values consistent across views.
-- Share filters, tabs, or theme state.
-- Update state from more than one component.
-- Keep different parts of the UI aligned.
-- Avoid duplicated UI state.
+- Test a service with `TestBed`.
+- Mock service dependencies.
+- Test HTTP-based service methods.
+- Test observable output from a service.
+- Verify RxJS stream behavior.
+- Use marble-style thinking for stream tests when needed.
 
-### Why This Matters
+## Why This Matters
 
-In many apps, one change affects more than one part of the screen. A selected filter might change a list and a summary card. A theme switch might affect the whole app. A selected tab might need to stay active as you move through related views.
+Services often hold business logic, data fetching, and shared state, so they deserve direct tests. Angular’s testing docs show that services and HTTP interactions can be tested without real network calls, and RxJS testing tools help validate stream behavior more precisely [web:351][web:359][web:363].
 
 This matters because:
-- The app feels consistent.
-- Users do not see conflicting UI.
-- You avoid storing the same value in multiple places.
-- Shared UI behavior becomes easier to manage.
+- Service logic is often reused.
+- Bugs in services affect many components.
+- HTTP tests should not depend on real APIs.
+- RxJS streams can be tested deterministically.
 
-### Common Synced UI Cases
+## Service Testing Basics
 
-- Selected tabs.
-- Active filters.
-- Theme mode.
-- Sort order.
-- Search query.
-- Selected item or category.
+A service test usually creates the service with `TestBed`, injects dependencies, and checks the result of a method call. If the service depends on another service, you can replace that dependency with a mock or spy object [web:366][web:361][web:359].
 
-### Basic Sync Pattern
+## HTTP Service Testing
 
-The usual pattern is:
-- Store the state in one shared place.
-- Read it from every component that needs it.
-- Update it from whichever component changes it.
-- Let the UI react automatically.
+Angular’s HTTP testing utilities let you capture requests, inspect them, and provide mock responses [web:351].
 
-### Example Idea
+Typical flow:
+- Set up `HttpClientTestingModule` or the modern testing provider.
+- Inject the service.
+- Call the method.
+- Expect a request.
+- Flush a fake response.
 
-A filter bar and a result list can share the same search query. When the user types in the filter bar, the results update. If another component also shows the query, it stays in sync because both read from the same source of truth.
+## Observable Testing Basics
 
-### Practical Example
+If a service returns an observable, you can subscribe in the test and assert the emitted values. For more complex timing behavior, RxJS `TestScheduler` and marble diagrams help you test streams in a controlled way [web:363][web:360].
+
+## Example Service
 
 ```ts
-import { Injectable, signal } from '@angular/core';
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { map, Observable } from 'rxjs';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class UiStateService {
-  selectedTab = signal('overview');
-  theme = signal('light');
+@Injectable({ providedIn: 'root' })
+export class UserService {
+  constructor(private http: HttpClient) {}
 
-  setTab(tab: string) {
-    this.selectedTab.set(tab);
-  }
-
-  toggleTheme() {
-    this.theme.set(this.theme() === 'light' ? 'dark' : 'light');
+  getUserName(): Observable<string> {
+    return this.http.get<{ name: string }>('/api/user').pipe(
+      map(user => user.name)
+    );
   }
 }
 ```
 
-One component can change the tab, and another can display the same current tab.
+## Example Service Test
 
 ```ts
-import { Component, inject } from '@angular/core';
-import { UiStateService } from './ui-state.service';
+import { TestBed } from '@angular/core/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { UserService } from './user.service';
 
-@Component({
-  selector: 'app-tab-bar',
-  standalone: true,
-  template: `
-    <button (click)="ui.setTab('overview')">Overview</button>
-    <button (click)="ui.setTab('details')">Details</button>
-    <button (click)="ui.setTab('settings')">Settings</button>
-  `
-})
-export class TabBarComponent {
-  ui = inject(UiStateService);
-}
+describe('UserService', () => {
+  let service: UserService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [UserService]
+    });
+
+    service = TestBed.inject(UserService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+  });
+
+  it('returns the user name', () => {
+    service.getUserName().subscribe(name => {
+      expect(name).toBe('Alice');
+    });
+
+    const req = httpMock.expectOne('/api/user');
+    expect(req.request.method).toBe('GET');
+    req.flush({ name: 'Alice' });
+  });
+});
 ```
+
+This test verifies both the request and the transformed observable result, which is the main value of service testing [web:351][web:366].
+
+## RxJS Stream Test Example
 
 ```ts
-import { Component, inject } from '@angular/core';
-import { UiStateService } from './ui-state.service';
+import { TestScheduler } from 'rxjs/testing';
+import { map } from 'rxjs/operators';
+import { of } from 'rxjs';
 
-@Component({
-  selector: 'app-tab-view',
-  standalone: true,
-  template: `
-    <p>Current tab: {{ ui.selectedTab() }}</p>
-    <p>Theme: {{ ui.theme() }}</p>
-  `
-})
-export class TabViewComponent {
-  ui = inject(UiStateService);
-}
+describe('RxJS stream', () => {
+  it('maps values correctly', () => {
+    const scheduler = new TestScheduler((actual, expected) => {
+      expect(actual).toEqual(expected);
+    });
+
+    scheduler.run(({ expectObservable }) => {
+      const source$ = of(1, 2, 3).pipe(map(x => x * 2));
+      expectObservable(source$).toBe('(abc|)', {
+        a: 2,
+        b: 4,
+        c: 6
+      });
+    });
+  });
+});
 ```
 
-### Good Sync Use Cases
+## Best Practices
 
-Use synced UI state when:
-- Multiple parts of the app should reflect the same choice.
-- The state is small and simple.
-- The state is part of the user experience.
-- You want one source of truth.
+- Test services in isolation when possible.
+- Mock HTTP instead of calling real endpoints.
+- Assert both emitted values and side effects.
+- Keep RxJS tests deterministic.
+- Use marble tests for tricky timing or stream logic.
 
-### When Not to Sync Everything
+## Easy Challenges
 
-Not every value should be shared. If a value is only meaningful inside one component, keep it local. Syncing too much state can make the app harder to reason about.
+- Test a service method that returns a value.
+- Mock one dependency with a spy.
+- Test one HTTP GET request.
+- Subscribe to one observable in a test.
+- Verify a simple mapping step.
 
-### Best Practices
+## Medium Challenges
 
-- Keep the synced state small.
-- Use one shared owner for the data.
-- Update state through methods.
-- Avoid duplicate local copies of the same value.
-- Derive display data instead of storing it separately.
-- Use clear names like `selectedTab`, `theme`, or `query`.
+- Test a service with two methods.
+- Mock an HTTP response.
+- Check that a service transforms API data.
+- Test a loading flag emitted by a stream.
+- Write one `TestScheduler` example.
 
-### Easy Challenges
+## Hard Challenges
 
-- Share one selected tab across two components.
-- Sync a light/dark theme value.
-- Keep one search query visible in two places.
-- Update shared UI state from a button.
-- Display the same selected item in multiple components.
+- Test a service with multiple dependencies.
+- Verify error handling in a service.
+- Test a stream with timing behavior.
+- Use marble diagrams for an RxJS pipeline.
+- Refactor repeated test setup into helpers.
 
-### Medium Challenges
+## Reflection Questions
 
-- Build a filter bar and results list with shared query state.
-- Create a tab system that stays in sync across views.
-- Add a theme toggle that updates the whole layout.
-- Share a sort order across two components.
-- Keep a selected category synced across a header and content area.
+- Why test services separately from components?
+- Why mock HTTP requests?
+- When should you use `TestScheduler`?
+- What does `HttpTestingController` help verify?
+- Which service logic is best tested directly?
 
-### Hard Challenges
+## Day Deliverable
 
-- Build a dashboard with shared filter and sort state.
-- Sync selected tabs across multiple nested views.
-- Create a theme and layout preference state.
-- Refactor duplicated local state into one shared UI service.
-- Keep summary cards and list views aligned through one shared selection.
+Create one test file that includes:
 
-### Reflection Questions
+- One service test.
+- One mocked HTTP request.
+- One observable assertion.
+- One RxJS stream test or equivalent.
+- One dependency mock.
 
-- What kinds of UI state are worth syncing?
-- Why should synced values have one owner?
-- When is local state still better?
-- How do shared methods help keep UI in sync?
-- What happens when the same UI value is stored in two places?
+## Suggested Practice Flow
 
-### Day Deliverable
-
-Create one shared UI state service and two components that:
-
-- Read the same UI value.
-- Update that value from at least one component.
-- Stay visually in sync.
-- Use one source of truth.
-- Keep the logic simple.
-
-### Suggested Practice Flow
-
-1. Pick one shared UI choice.
-2. Put it in a shared service.
-3. Read it from two components.
-4. Update it from one or both components.
-5. Verify that both views stay aligned.
+1. Create a service test with `TestBed`.
+2. Mock HTTP if the service uses it.
+3. Assert one emitted value.
+4. Add a dependency mock.
+5. Test one RxJS pipeline.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 36
+## Note for Day 36
 
-Next day will cover performance basics, which will help you keep Angular apps fast as shared state and component interactions grow.
+Next day covers **Performance Optimization**, which is the next step in preparing Angular apps for production.
