@@ -1,149 +1,145 @@
-## Day 36 — Performance Basics
+# Day 36 — Performance Optimization
 
-Day 36 is about making Angular apps feel faster and more responsive. The main idea is to avoid unnecessary work in templates, reduce repeated rendering, and keep change detection-friendly patterns in place.
+Day 36 is about making Angular apps faster to load and more responsive after they load. Angular’s performance guides highlight techniques like lazy-loaded routes, `@defer`, `OnPush`, image optimization, SSR, hydration, and profiling with Angular DevTools or Chrome DevTools [web:368][web:371][web:374].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what usually slows Angular apps down.
-- Avoid unnecessary template work.
-- Keep list rendering efficient.
-- Use good component boundaries.
-- Reduce heavy logic in templates.
-- Recognize common performance pitfalls.
+- Recognize loading vs runtime performance issues.
+- Use lazy loading to reduce initial bundle size.
+- Understand `@defer` for on-demand UI loading.
+- Use `OnPush` to reduce unnecessary change detection.
+- Spot slow computations in templates or hooks.
+- Profile the app before optimizing.
 
-### Why This Matters
+## Why This Matters
 
-As apps grow, performance issues often come from small repeated costs: too much template logic, large lists rendering often, or components updating more than they need to. Fixing these early keeps the app smooth and easier to scale.
+Performance affects both user experience and Core Web Vitals such as Largest Contentful Paint and Time to First Byte. Angular’s docs emphasize that you should profile first, then optimize the specific bottleneck rather than guessing [web:368][web:369][web:371].
 
 This matters because:
-- The UI feels more responsive.
-- Lists render more efficiently.
-- Components do less unnecessary work.
-- The app remains easier to maintain.
+- Faster apps feel better to use.
+- Better loading can improve SEO and conversion.
+- Less change detection can improve responsiveness.
+- The right optimization depends on the problem.
 
-### Common Performance Habits
+## Loading Performance
 
-A few habits make a big difference:
-- Keep templates simple.
-- Avoid expensive function calls in templates.
-- Break large UIs into smaller components.
-- Use efficient list tracking.
-- Only compute data when needed.
+Loading performance is about how quickly the app becomes visible and interactive. Angular recommends tactics like lazy-loaded routes, `@defer`, image optimization, and server-side rendering for improving initial load [web:368][web:374][web:369].
 
-### Template Work
+Common loading optimizations:
+- Lazy-loaded routes.
+- Deferred component loading with `@defer`.
+- Image optimization with `NgOptimizedImage`.
+- Server-side rendering.
+- Hydration and incremental hydration.
 
-If a template does too much work, Angular may repeat that work during updates. A better approach is to compute values in the component or derive them once instead of recalculating them constantly in the template.
+## Runtime Performance
 
-Bad pattern:
-- Calling heavy methods directly from the template.
+Runtime performance is about how responsive the app feels after it loads. Angular’s runtime guidance focuses on change detection, slow computations, and skipping unchanged component subtrees with `OnPush` or zoneless approaches [web:371][web:368][web:369].
 
-Better pattern:
-- Store the computed result in a property or derived value.
+Common runtime optimizations:
+- Use `OnPush` where appropriate.
+- Avoid expensive work in templates.
+- Reduce unnecessary change detection.
+- Watch for zone pollution.
+- Move heavy computations out of hot paths.
 
-### Efficient Lists
+## Profiling First
 
-Large lists can become expensive if every item is re-rendered unnecessarily. When you render arrays, use stable item identity so Angular can keep existing DOM elements where possible.
+Angular recommends profiling before optimizing so you know where the bottleneck is. Angular DevTools and Chrome DevTools help identify repeated change detection cycles and slow components [web:368][web:371][web:369].
 
-### Practical Example
+A good workflow is:
+1. Measure.
+2. Find the bottleneck.
+3. Optimize one thing.
+4. Measure again.
+
+## Practical Example
 
 ```ts
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
-  selector: 'app-task-list',
+  selector: 'app-performance-demo',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ul>
-      @for (task of tasks; track task.id) {
-        <li>{{ task.title }}</li>
-      }
-    </ul>
+    <button (click)="load()">Load data</button>
+    <p *ngIf="loaded">Data loaded</p>
   `
 })
-export class TaskListComponent {
-  tasks = [
-    { id: 1, title: 'Learn performance basics' },
-    { id: 2, title: 'Track list items properly' }
-  ];
+export class PerformanceDemoComponent {
+  loaded = false;
+
+  load() {
+    this.loaded = true;
+  }
 }
 ```
 
-Tracking by `id` helps Angular reuse items more effectively.
+This example uses `OnPush` to reduce unnecessary checks, which matches Angular’s runtime performance guidance [web:371][web:368].
 
-### Avoid Heavy Template Logic
+## Best Practices
 
-Templates should display data, not do a lot of computation. If you need to filter, sort, or summarize data, it is usually better to do that in the component or in a derived stream/value.
+- Profile before changing code.
+- Use lazy loading for non-critical routes.
+- Use `@defer` for below-the-fold content.
+- Prefer `OnPush` for stable component trees.
+- Keep heavy calculations out of templates.
+- Optimize images and rendering strategy when loading is the issue.
 
-Good rule:
-- Use templates for display.
-- Use component logic for data shaping.
+## Easy Challenges
 
-### Smaller Components
+- Find one slow screen in your app.
+- Change one component to `OnPush`.
+- Move one expensive calculation out of the template.
+- Lazy load one route.
+- Test `@defer` on a heavy section.
 
-Breaking large views into smaller parts can help performance and readability. Smaller components are easier to reason about, and they often re-render in a more targeted way.
+## Medium Challenges
 
-### Best Practices
+- Profile a page and note the bottleneck.
+- Apply image optimization to one page.
+- Use deferred loading for one component.
+- Reduce unnecessary re-renders in a list.
+- Compare performance before and after a change.
 
-- Keep templates simple.
-- Use stable tracking for lists.
-- Avoid unnecessary function calls in markup.
-- Split big views into smaller components.
-- Compute derived values outside the template when possible.
-- Measure before optimizing deeply.
+## Hard Challenges
 
-### Easy Challenges
+- Refactor a large feature for lazy loading.
+- Add `OnPush` to multiple child components.
+- Separate loading performance from runtime performance fixes.
+- Use profiling data to justify a change.
+- Tune a screen with multiple rendering bottlenecks.
 
-- Replace a template function with a property.
-- Add tracking to a repeated list.
-- Split one large section into two components.
-- Remove one expensive calculation from a template.
-- Keep display logic simple.
+## Reflection Questions
 
-### Medium Challenges
+- Is your issue loading speed or runtime responsiveness?
+- What does `OnPush` skip?
+- Why should you profile before optimizing?
+- When is `@defer` useful?
+- Which optimization gives the biggest benefit in your app?
 
-- Optimize a task list with proper tracking.
-- Refactor a filter method out of the template.
-- Break a dashboard into smaller components.
-- Move summary calculations into component code.
-- Reduce repeated rendering in one list view.
+## Day Deliverable
 
-### Hard Challenges
+Create one optimization example that includes:
 
-- Refactor a complex page into smaller performance-friendly parts.
-- Improve a large list’s rendering behavior.
-- Remove multiple template computations.
-- Reorganize a page so only necessary sections update.
-- Compare an unoptimized and optimized version of the same screen.
+- One performance problem.
+- One profiling step or note.
+- One optimization such as lazy loading or `OnPush`.
+- One explanation of the improvement.
+- One Angular-specific technique.
 
-### Reflection Questions
+## Suggested Practice Flow
 
-- What kinds of template work can slow an app down?
-- Why is list tracking important?
-- When should logic move out of the template?
-- How do smaller components help performance?
-- Why is it better to optimize only after identifying a problem?
-
-### Day Deliverable
-
-Create one UI screen that includes:
-
-- A repeated list.
-- Proper item tracking.
-- No heavy template computation.
-- At least one component split or simplification.
-- A clear improvement in clarity or efficiency.
-
-### Suggested Practice Flow
-
-1. Find a component with repeated work.
-2. Simplify the template.
-3. Add stable tracking to lists.
-4. Move heavy logic into the component.
-5. Split large sections if needed.
+1. Identify a slow page or component.
+2. Measure the issue.
+3. Apply one optimization.
+4. Re-measure.
+5. Compare results.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 37
+## Note for Day 37
 
-Next day will cover change detection basics, which will help you understand when Angular updates the UI and how to keep those updates efficient.
+Next day covers **Reusability and Architecture**, which is the next step in keeping Angular apps maintainable.
