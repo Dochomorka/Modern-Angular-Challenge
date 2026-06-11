@@ -1,164 +1,177 @@
-## Day 29 — RxJS Fundamentals
+# Day 29 — Template-Driven Forms
 
-Day 29 is about learning the basics of RxJS, which Angular uses heavily for HTTP, forms, events, and reactive state. The main idea is that RxJS gives you a way to work with streams of values over time instead of only single values.
+Day 29 is about building forms the Angular way using template-driven forms. Angular’s forms guide explains that there are two main form styles, and template-driven forms use template directives like `FormsModule`, `ngForm`, and `ngModel` to handle binding and validation in the template [web:309][web:315][web:306].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Understand what an observable is.
-- Know what a stream of values means.
-- Subscribe to an observable.
-- Use basic operators like `map`.
-- Understand why RxJS is important in Angular.
-- Recognize when to use observables instead of plain values.
+- Understand what template-driven forms are.
+- Use `FormsModule` in a component.
+- Bind form inputs with `ngModel`.
+- Read form state with `ngForm`.
+- Handle submit events.
+- Apply basic validation in the template.
 
-### Why This Matters
+## Why This Matters
 
-Angular APIs often return observables, especially HTTP requests and many event-based patterns. If you understand RxJS, you can handle async data more confidently and keep your app’s data flow organized.
+Template-driven forms are a simple way to build forms with less component code. Angular’s form docs show that this approach is useful when you want quick setup and template-centered logic, especially for straightforward forms [web:315][web:306].
 
 This matters because:
-- HTTP responses often arrive later.
-- User input can be treated as a stream.
-- Multiple values can change over time.
-- You can transform data before showing it.
+- It is easy to start with.
+- It keeps form markup readable.
+- It is good for simple forms.
+- It introduces Angular form concepts naturally.
 
-### Observable Basics
+## Core Ideas
 
-An observable is a stream that can emit one or more values over time. You subscribe to it when you want to receive those values.
+Template-driven forms rely on the template to define the form structure and most of the behavior. Inputs are connected with `ngModel`, and the form itself is managed with `ngForm` [web:315][web:300][web:306].
 
-### Example
+## Basic Setup
 
-```ts
-import { Observable } from 'rxjs';
-
-const numbers$ = new Observable<number>(subscriber => {
-  subscriber.next(1);
-  subscriber.next(2);
-  subscriber.next(3);
-  subscriber.complete();
-});
-
-numbers$.subscribe(value => {
-  console.log(value);
-});
-```
-
-### Why Angular Uses RxJS
-
-RxJS fits Angular well because many Angular features are asynchronous:
-- HTTP requests.
-- Route events.
-- Form value changes.
-- User interactions.
-- Timers and intervals.
-
-Using observables gives you a common pattern for handling all of these.
-
-### The `map` Operator
-
-`map` transforms values emitted by an observable.
-
-```ts
-import { of } from 'rxjs';
-import { map } from 'rxjs/operators';
-
-of(2, 4, 6)
-  .pipe(map(value => value * 2))
-  .subscribe(value => console.log(value));
-```
-
-You use `pipe()` to apply operators in a chain.
-
-### Practical Example
+You need `FormsModule` imported before using template-driven features like `ngModel` [web:315][web:300].
 
 ```ts
 import { Component } from '@angular/core';
-import { of } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { FormsModule } from '@angular/forms';
 
 @Component({
-  selector: 'app-rxjs-demo',
+  selector: 'app-template-form',
   standalone: true,
-  template: `
-    <p>Check the console for values.</p>
-  `
+  imports: [FormsModule],
+  templateUrl: './template-form.component.html'
 })
-export class RxjsDemoComponent {
-  constructor() {
-    of('angular', 'rxjs', 'streams')
-      .pipe(map(value => value.toUpperCase()))
-      .subscribe(value => console.log(value));
+export class TemplateFormComponent {
+  user = {
+    name: '',
+    email: ''
+  };
+
+  onSubmit(form: any) {
+    console.log(form.value);
   }
 }
 ```
 
-### Key Ideas
+## Template Example
 
-- Observables can emit many values over time.
-- `subscribe()` listens to the stream.
-- `pipe()` lets you transform the stream.
-- Operators like `map` help you process data before using it.
+```html
+<form #userForm="ngForm" (ngSubmit)="onSubmit(userForm)">
+  <label>
+    Name:
+    <input name="name" [(ngModel)]="user.name" required />
+  </label>
 
-### Best Practices
+  <label>
+    Email:
+    <input name="email" [(ngModel)]="user.email" email required />
+  </label>
 
-- Use observables for async data.
-- Keep subscriptions under control.
-- Transform data with operators instead of manual loops when possible.
-- Prefer readable stream chains.
-- Unsubscribe when needed if the stream does not complete on its own.
+  <button type="submit" [disabled]="userForm.invalid">Submit</button>
+</form>
+```
 
-### Easy Challenges
+`ngModel` creates two-way binding between the input and your component data, while `ngForm` gives you access to the form object and its validation state [web:315][web:300].
 
-- Create an observable that emits three values.
-- Subscribe and log each value.
-- Use `map` to transform a stream.
-- Create an observable from a simple value.
-- Write one `pipe()` chain with a single operator.
+## Validation Basics
 
-### Medium Challenges
+Template-driven validation is usually added directly in the template with standard validators like `required` and `email`. Angular’s form guidance shows that template-driven forms support validation through template attributes and directives [web:305][web:306][web:314].
 
-- Transform a list of strings to uppercase.
-- Create an observable that emits numbers and doubles them.
-- Use `of()` to build a simple data stream.
-- Combine a value stream with `map`.
-- Show observable output in a component method.
+Common checks include:
+- `required`
+- `email`
+- `minlength`
+- `maxlength`
 
-### Hard Challenges
+## Practical Example
 
-- Build a small stream that transforms task names.
-- Use observables to represent changing form values.
-- Create a timer-based stream.
-- Refactor manual data transformation into `pipe()`.
-- Compare a plain array approach to an observable approach.
+```ts
+import { Component } from '@angular/core';
+import { FormsModule, NgForm } from '@angular/forms';
 
-### Reflection Questions
+@Component({
+  selector: 'app-contact-form',
+  standalone: true,
+  imports: [FormsModule],
+  template: `
+    <form #f="ngForm" (ngSubmit)="submit(f)">
+      <input name="fullName" [(ngModel)]="model.fullName" required minlength="3" />
+      <input name="message" [(ngModel)]="model.message" required maxlength="100" />
+      <button type="submit" [disabled]="f.invalid">Send</button>
+    </form>
+  `
+})
+export class ContactFormComponent {
+  model = {
+    fullName: '',
+    message: ''
+  };
 
-- What makes an observable different from a normal value?
-- Why is RxJS useful in Angular?
-- What does `pipe()` do?
-- When should you subscribe?
-- Why are streams a good fit for async data?
+  submit(form: NgForm) {
+    console.log(form.value);
+  }
+}
+```
 
-### Day Deliverable
+## Best Practices
 
-Create one observable example that includes:
+- Use template-driven forms for simple to medium forms.
+- Import `FormsModule` before using `ngModel`.
+- Always give inputs a `name` attribute.
+- Use `ngForm` to read form state.
+- Disable submit until the form is valid.
 
-- At least one stream.
-- One subscription.
-- One operator like `map`.
-- A transformed output.
-- A clear understanding of value flow.
+## Easy Challenges
 
-### Suggested Practice Flow
+- Create a form with one input and one button.
+- Bind one field with `ngModel`.
+- Read form values on submit.
+- Add a `required` validator.
+- Disable the submit button until valid.
 
-1. Create a simple observable.
-2. Subscribe to it.
-3. Add one operator.
-4. Transform the output.
-5. Test the stream with different values.
+## Medium Challenges
+
+- Build a contact form with three fields.
+- Show form values in the console.
+- Add `minlength` and `email` validation.
+- Display whether the form is valid.
+- Reset the form after submit.
+
+## Hard Challenges
+
+- Build a registration form with several fields.
+- Show error messages only after touch or submit.
+- Disable submit until all fields are valid.
+- Add conditional validation hints.
+- Refactor the form for readability.
+
+## Reflection Questions
+
+- What makes a form template-driven?
+- Why do you need `FormsModule`?
+- How does `ngModel` work?
+- What does `ngForm` give you?
+- When is template-driven better than reactive forms?
+
+## Day Deliverable
+
+Create one template-driven form that includes:
+
+- `FormsModule`
+- At least two inputs
+- `ngModel` binding
+- One validation rule
+- A submit handler
+
+## Suggested Practice Flow
+
+1. Import `FormsModule`.
+2. Create a simple form.
+3. Add `ngModel` bindings.
+4. Add validation.
+5. Handle submit.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 30
+## Note for Day 30
 
-Next day will cover more RxJS operators and combining streams, which will help you build more realistic reactive data flows in Angular.
+Next day covers **Reactive Forms**, which moves form logic into the component and gives more control over validation and state.
