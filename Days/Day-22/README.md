@@ -1,232 +1,150 @@
-## Day 22 — Form Validation and Error Messages
+# Day 22 — Subscriptions and Cleanup
 
-Day 22 is about making Angular forms clear, safe, and user-friendly with validation and visible feedback. The main goal is to help users understand what went wrong and how to fix it before they submit the form.
+Day 22 is about managing RxJS subscriptions safely in Angular. Some observables complete on their own, but long-lived streams often need explicit cleanup to avoid memory leaks; Angular also offers `takeUntilDestroyed` as a concise way to auto-unsubscribe when a component or directive is destroyed [web:225][web:205][web:232].
 
-### Goal
+## Goal
 
 By the end of this day, you should be able to:
 
-- Show validation errors for invalid fields.
-- Display errors only when appropriate.
-- Use built-in validators effectively.
-- Mark fields as touched or dirty in a useful way.
-- Prevent invalid form submission.
-- Build forms that feel easier to use.
+- Understand what a subscription is.
+- Know when cleanup is needed.
+- Unsubscribe from long-lived streams.
+- Use `ngOnDestroy` for manual cleanup.
+- Recognize when cleanup is not necessary.
+- Use modern Angular cleanup helpers when appropriate.
 
-### Why This Matters
+## Why This Matters
 
-Validation is what turns a basic form into a reliable one. Without error messages, users may submit bad data, get confused, or abandon the form entirely.
+A subscription keeps listening to a stream. If that stream keeps running after a component is gone, you can waste resources or create memory leaks [web:205][web:226][web:232].
 
-Good validation helps you:
-- Reduce mistakes.
-- Guide the user step by step.
-- Make forms feel polished.
-- Keep bad data out of your app.
+This matters because:
+- Components are created and destroyed often.
+- Timers and event streams may never stop by themselves.
+- Cleanup keeps apps healthy.
+- It prevents hidden bugs over time.
 
-### Basic Validation Pattern
+## Basic Idea
 
-A good form usually checks:
-- Required fields.
-- Email format.
-- Minimum length.
-- Matching rules for related fields.
+Subscribing starts listening to the observable. Cleanup stops that listening when the component no longer needs the stream [web:205][web:225].
 
-Error messages should appear when the user has interacted with the field, not immediately on page load.
-
-### Example: Field Errors
+## Manual Cleanup Example
 
 ```ts
-import { Component } from '@angular/core';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { Component, OnDestroy } from '@angular/core';
+import { interval, Subscription } from 'rxjs';
 
 @Component({
-  selector: 'app-contact-form',
+  selector: 'app-sub-demo',
   standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="contactForm" (ngSubmit)="submit()">
-      <label>
-        Name
-        <input formControlName="name" />
-      </label>
-      @if (name.invalid && name.touched) {
-        <p>Name is required.</p>
-      }
-
-      <label>
-        Email
-        <input formControlName="email" />
-      </label>
-      @if (email.invalid && email.touched) {
-        <p>Please enter a valid email.</p>
-      }
-
-      <button type="submit" [disabled]="contactForm.invalid">Send</button>
-    </form>
-  `
+  template: `<p>Open the console</p>`
 })
-export class ContactFormComponent {
-  contactForm = this.fb.group({
-    name: ['', Validators.required],
-    email: ['', [Validators.required, Validators.email]]
-  });
+export class SubDemoComponent implements OnDestroy {
+  sub: Subscription;
 
-  constructor(private fb: FormBuilder) {}
-
-  get name() {
-    return this.contactForm.get('name')!;
+  constructor() {
+    this.sub = interval(1000).subscribe(value => console.log(value));
   }
 
-  get email() {
-    return this.contactForm.get('email')!;
-  }
-
-  submit() {
-    if (this.contactForm.invalid) {
-      this.contactForm.markAllAsTouched();
-      return;
-    }
+  ngOnDestroy() {
+    this.sub.unsubscribe();
   }
 }
 ```
 
-### When to Show Errors
+## Using `takeUntilDestroyed`
 
-A common rule is:
-- Show errors after a field is touched.
-- Show errors after submit if the form is invalid.
-- Avoid showing errors before the user has had a chance to type.
-
-This keeps the form helpful instead of noisy.
-
-### Common Error Types
-
-- Required.
-- Invalid email.
-- Too short.
-- Pattern mismatch.
-- Passwords do not match.
-
-### Practical Example: Password Match
+Angular provides `takeUntilDestroyed` in `@angular/core/rxjs-interop` to automatically unsubscribe when a component or directive is destroyed [web:225].
 
 ```ts
-import { Component } from '@angular/core';
-import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { Component, inject } from '@angular/core';
+import { interval } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
-  selector: 'app-register-form',
+  selector: 'app-auto-cleanup',
   standalone: true,
-  imports: [ReactiveFormsModule],
-  template: `
-    <form [formGroup]="registerForm" (ngSubmit)="submit()">
-      <input formControlName="password" type="password" placeholder="Password" />
-      @if (password.invalid && password.touched) {
-        <p>Password is required.</p>
-      }
-
-      <input formControlName="confirmPassword" type="password" placeholder="Confirm password" />
-      @if (registerForm.errors?.['mismatch'] && confirmPassword.touched) {
-        <p>Passwords do not match.</p>
-      }
-
-      <button type="submit" [disabled]="registerForm.invalid">Register</button>
-    </form>
-  `
+  template: `<p>Check the console</p>`
 })
-export class RegisterFormComponent {
-  registerForm = this.fb.group(
-    {
-      password: ['', Validators.required],
-      confirmPassword: ['', Validators.required]
-    },
-    { validators: this.passwordMatchValidator }
-  );
-
-  constructor(private fb: FormBuilder) {}
-
-  get password() {
-    return this.registerForm.get('password')!;
-  }
-
-  get confirmPassword() {
-    return this.registerForm.get('confirmPassword')!;
-  }
-
-  passwordMatchValidator(group: any) {
-    const password = group.get('password')?.value;
-    const confirmPassword = group.get('confirmPassword')?.value;
-    return password === confirmPassword ? null : { mismatch: true };
-  }
-
-  submit() {
-    if (this.registerForm.invalid) {
-      this.registerForm.markAllAsTouched();
-      return;
-    }
+export class AutoCleanupComponent {
+  constructor() {
+    interval(1000)
+      .pipe(takeUntilDestroyed())
+      .subscribe(value => console.log(value));
   }
 }
 ```
 
-### Best Practices
+## When Cleanup Matters
 
-- Keep messages short.
-- Place the message near the field.
-- Show one clear error at a time if possible.
-- Disable submit when the form is invalid.
-- Mark all fields as touched on submit.
-- Use user-friendly language instead of technical jargon.
+Cleanup is important when:
+- The observable does not complete automatically.
+- The stream is long-lived, like a timer or event stream.
+- The component may be destroyed and recreated.
+- You are manually subscribing in component code [web:225][web:205][web:232].
 
-### Easy Challenges
+## When Cleanup May Not Be Needed
 
-- Show a required-field message.
-- Show an invalid email message.
-- Disable the submit button when the form is invalid.
-- Display an error only after a field is touched.
-- Mark the form as touched on submit.
+Some observables complete naturally, such as many `HttpClient` requests. In those cases, explicit manual unsubscribe is usually not required [web:232][web:205].
 
-### Medium Challenges
+## Best Practices
 
-- Add error messages to a login form.
-- Build a signup form with password validation.
-- Show one custom form-level error.
-- Add feedback for empty and invalid fields.
-- Style errors so they stand out clearly.
+- Unsubscribe from long-lived streams.
+- Use `ngOnDestroy` when manual cleanup is appropriate.
+- Use `takeUntilDestroyed` when you want a simpler cleanup pattern.
+- Keep subscriptions obvious and organized.
+- Avoid leaving event listeners or timers active after the component is destroyed.
 
-### Hard Challenges
+## Easy Challenges
 
-- Build a multi-field registration form with custom validation.
-- Add a password confirmation check.
-- Show errors only after touch or submit.
-- Create reusable helper text for validation messages.
-- Refactor a form so validation logic is easy to read.
+- Subscribe to an interval and unsubscribe.
+- Track one subscription in a variable.
+- Clean up a click stream.
+- Identify a stream that completes automatically.
+- Add destroy logic to a demo component.
 
-### Reflection Questions
+## Medium Challenges
 
-- Why should validation messages not show too early?
-- What is the difference between field-level and form-level validation?
-- Why is `markAllAsTouched()` useful?
-- How do error messages improve UX?
-- When should a form-level validator be used?
+- Manage two subscriptions in one component.
+- Separate one-time and long-lived streams.
+- Clean up a form event stream.
+- Use a timer and stop it safely.
+- Refactor subscription logic for clarity.
 
-### Day Deliverable
+## Hard Challenges
 
-Create one reactive form that includes:
+- Build a component with multiple active streams.
+- Avoid leaks in a long-lived event listener.
+- Compare manual cleanup with automatic completion.
+- Create a pattern for tracking several subscriptions.
+- Refactor cleanup logic into a reusable approach.
 
-- At least two validated fields.
-- Visible error messages.
-- Conditional error display logic.
-- Disabled submit when invalid.
-- One custom validation rule or mismatch check.
+## Reflection Questions
 
-### Suggested Practice Flow
+- What is a subscription?
+- Why do some streams need cleanup?
+- Which kinds of streams usually complete on their own?
+- What happens if you forget to unsubscribe?
+- How does `takeUntilDestroyed` help?
 
-1. Add validators to your form.
-2. Create error messages for each field.
-3. Show messages only when needed.
-4. Add submit-time validation handling.
-5. Add one custom validator.
+## Day Deliverable
+
+Create one component that includes:
+
+- At least one live subscription.
+- A cleanup step.
+- A long-lived stream.
+- A clear reason for unsubscribing.
+- Safe component teardown.
+
+## Suggested Practice Flow
+
+1. Create one long-lived observable.
+2. Subscribe to it.
+3. Add cleanup logic.
+4. Test the behavior.
+5. Compare manual cleanup with `takeUntilDestroyed`.
 6. Complete the easy, medium, and hard challenges.
 
-### Note for Day 23
+## Note for Day 23
 
-Next day will cover custom validators and reusable validation logic, which will help you keep your form rules clean and consistent.
+Next day covers **Core operators: `map`, `tap`, `filter`**, which is the next step in building readable RxJS pipelines.
